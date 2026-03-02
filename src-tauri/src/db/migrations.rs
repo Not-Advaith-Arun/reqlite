@@ -64,7 +64,7 @@ pub fn run(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
 
         CREATE TABLE IF NOT EXISTS history (
             id TEXT PRIMARY KEY,
-            team_id TEXT NOT NULL,
+            team_id TEXT NOT NULL REFERENCES teams(id),
             method TEXT NOT NULL,
             url TEXT NOT NULL,
             status INTEGER NOT NULL,
@@ -78,6 +78,7 @@ pub fn run(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
 
         CREATE INDEX IF NOT EXISTS idx_history_team ON history(team_id);
         CREATE INDEX IF NOT EXISTS idx_history_timestamp ON history(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_history_team_timestamp ON history(team_id, timestamp);
 
         CREATE TABLE IF NOT EXISTS websocket_connections (
             id TEXT PRIMARY KEY,
@@ -88,22 +89,9 @@ pub fn run(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
             created_at TEXT NOT NULL
         );
 
-        CREATE TABLE IF NOT EXISTS sync_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            team_id TEXT NOT NULL,
-            entity_type TEXT NOT NULL,
-            entity_id TEXT NOT NULL,
-            op_type TEXT NOT NULL,
-            fields TEXT NOT NULL DEFAULT '{}',
-            revision INTEGER NOT NULL,
-            user_id TEXT NOT NULL DEFAULT 'local',
-            timestamp TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS sync_cursors (
-            team_id TEXT PRIMARY KEY,
-            last_revision INTEGER NOT NULL DEFAULT 0
-        );
+        -- Drop legacy sync tables from earlier revision-based design
+        DROP TABLE IF EXISTS sync_log;
+        DROP TABLE IF EXISTS sync_cursors;
 
         CREATE TABLE IF NOT EXISTS deleted_entities (
             id TEXT PRIMARY KEY,
@@ -179,34 +167,6 @@ fn migrate_workspace_to_team(conn: &Connection) -> Result<(), Box<dyn std::error
     conn.execute("DROP INDEX IF EXISTS idx_collections_workspace", [])?;
     conn.execute("DROP INDEX IF EXISTS idx_environments_workspace", [])?;
     conn.execute("DROP INDEX IF EXISTS idx_history_workspace", [])?;
-
-    // Rename in sync_log and sync_cursors if they have workspace_id
-    for table in &["sync_log", "sync_cursors"] {
-        let has_table: bool = conn.query_row(
-            &format!(
-                "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='{}'",
-                table
-            ),
-            [],
-            |row| row.get(0),
-        )?;
-        if has_table {
-            let has_col: bool = conn.query_row(
-                &format!(
-                    "SELECT COUNT(*) > 0 FROM pragma_table_info('{}') WHERE name='workspace_id'",
-                    table
-                ),
-                [],
-                |row| row.get(0),
-            )?;
-            if has_col {
-                let _ = conn.execute(
-                    &format!("ALTER TABLE {} RENAME COLUMN workspace_id TO team_id", table),
-                    [],
-                );
-            }
-        }
-    }
 
     Ok(())
 }

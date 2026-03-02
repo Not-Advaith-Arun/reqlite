@@ -1,15 +1,7 @@
 import { query, mutation, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
-
-async function assertTeamMember(ctx: any, teamId: any, userId: any) {
-  const membership = await ctx.db
-    .query("teamMembers")
-    .withIndex("by_team_user", (q: any) => q.eq("teamId", teamId).eq("userId", userId))
-    .first();
-  if (!membership) throw new Error("Not a team member");
-  return membership;
-}
+import { assertTeamMember } from "./lib";
 
 const collectionValidator = v.object({
   clientId: v.string(),
@@ -59,7 +51,11 @@ const historyValidator = v.object({
 });
 
 const deletionValidator = v.object({
-  entityType: v.string(),
+  entityType: v.union(
+    v.literal("collections"),
+    v.literal("requests"),
+    v.literal("environments")
+  ),
   clientId: v.string(),
 });
 
@@ -77,11 +73,13 @@ export const push = mutation({
     if (!userId) throw new Error("Not authenticated");
     await assertTeamMember(ctx, args.teamId, userId);
 
-    // Upsert collections
+    // Upsert collections — team-scoped lookup
     for (const col of args.collections) {
       const existing = await ctx.db
         .query("collections")
-        .withIndex("by_clientId", (q) => q.eq("clientId", col.clientId))
+        .withIndex("by_team_clientId", (q) =>
+          q.eq("teamId", args.teamId).eq("clientId", col.clientId)
+        )
         .first();
 
       if (existing) {
@@ -92,11 +90,13 @@ export const push = mutation({
       }
     }
 
-    // Upsert requests
+    // Upsert requests — team-scoped lookup
     for (const req of args.requests) {
       const existing = await ctx.db
         .query("requests")
-        .withIndex("by_clientId", (q) => q.eq("clientId", req.clientId))
+        .withIndex("by_team_clientId", (q) =>
+          q.eq("teamId", args.teamId).eq("clientId", req.clientId)
+        )
         .first();
 
       if (existing) {
@@ -107,11 +107,13 @@ export const push = mutation({
       }
     }
 
-    // Upsert environments
+    // Upsert environments — team-scoped lookup
     for (const env of args.environments) {
       const existing = await ctx.db
         .query("environments")
-        .withIndex("by_clientId", (q) => q.eq("clientId", env.clientId))
+        .withIndex("by_team_clientId", (q) =>
+          q.eq("teamId", args.teamId).eq("clientId", env.clientId)
+        )
         .first();
 
       if (existing) {
@@ -122,11 +124,13 @@ export const push = mutation({
       }
     }
 
-    // Append history (insert only, no upsert)
+    // Append history (insert only, no upsert) — team-scoped lookup
     for (const h of args.history) {
       const existing = await ctx.db
         .query("history")
-        .withIndex("by_clientId", (q) => q.eq("clientId", h.clientId))
+        .withIndex("by_team_clientId", (q) =>
+          q.eq("teamId", args.teamId).eq("clientId", h.clientId)
+        )
         .first();
 
       if (!existing) {
@@ -134,14 +138,13 @@ export const push = mutation({
       }
     }
 
-    // Process deletions (soft-delete on Convex side)
+    // Process deletions (soft-delete) — team-scoped lookup
     for (const del of args.deletions) {
-      const table = del.entityType as "collections" | "requests" | "environments";
-      if (!["collections", "requests", "environments"].includes(table)) continue;
-
       const existing = await ctx.db
-        .query(table)
-        .withIndex("by_clientId", (q) => q.eq("clientId", del.clientId))
+        .query(del.entityType)
+        .withIndex("by_team_clientId", (q) =>
+          q.eq("teamId", args.teamId).eq("clientId", del.clientId)
+        )
         .first();
 
       if (existing && !existing.deleted) {
@@ -182,11 +185,12 @@ export const pull = query({
       )
       .collect();
 
-    // History doesn't have updatedAt, use _creationTime
+    // _creationTime is the automatic tiebreaker on by_team index, so this is an index range scan
     const history = await ctx.db
       .query("history")
-      .withIndex("by_team", (q) => q.eq("teamId", args.teamId))
-      .filter((q) => q.gt(q.field("_creationTime"), args.since))
+      .withIndex("by_team", (q) =>
+        q.eq("teamId", args.teamId).gt("_creationTime", args.since)
+      )
       .collect();
 
     return { collections, requests, environments, history };
@@ -233,19 +237,25 @@ export const pullInitial = query({
 export const pruneHistory = internalMutation({
   args: {},
   handler: async (ctx) => {
-    // Get all teams
     const teams = await ctx.db.query("teams").collect();
 
     for (const team of teams) {
+      // Only fetch what we need: 501 to check if pruning is needed
       const history = await ctx.db
         .query("history")
         .withIndex("by_team", (q) => q.eq("teamId", team._id))
         .order("desc")
-        .collect();
+        .take(501);
 
-      // Delete entries beyond 500
       if (history.length > 500) {
-        const toDelete = history.slice(500);
+        // Need to delete excess — fetch IDs beyond the 500 limit
+        const allHistory = await ctx.db
+          .query("history")
+          .withIndex("by_team", (q) => q.eq("teamId", team._id))
+          .order("desc")
+          .collect();
+
+        const toDelete = allHistory.slice(500);
         for (const entry of toDelete) {
           await ctx.db.delete(entry._id);
         }

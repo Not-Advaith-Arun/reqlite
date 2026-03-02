@@ -12,10 +12,20 @@ export { syncState };
 let unsubscribe: (() => void) | null = null;
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let lastPushedAt = 0;
+let syncStopped = false;
+let isPushing = false;
 const recentlyPushedClientIds = new Set<string>();
+
+// Map singular entity types from Rust tombstones to plural Convex table names
+const ENTITY_TYPE_MAP: Record<string, "collections" | "requests" | "environments"> = {
+  collection: "collections",
+  request: "requests",
+  environment: "environments",
+};
 
 export function startSync(convexTeamId: string, localTeamId: string) {
   stopSync();
+  syncStopped = false;
   setSyncState("syncing");
 
   const client = getConvexClient();
@@ -24,6 +34,9 @@ export function startSync(convexTeamId: string, localTeamId: string) {
   // Get sync state from local DB
   invoke<{ lastPullAt: number; lastPushAt: number }>("get_sync_state", { teamId: localTeamId })
     .then((state) => {
+      // Guard against stopSync() called while invoke was pending
+      if (syncStopped) return;
+
       lastPushedAt = state.lastPushAt;
 
       // Subscribe to pull query for real-time updates
@@ -31,20 +44,20 @@ export function startSync(convexTeamId: string, localTeamId: string) {
         api.sync.pull,
         { teamId, since: state.lastPullAt },
         async (result) => {
-          if (!result) return;
+          if (syncStopped || !result) return;
           try {
             await applyRemoteChanges(result, localTeamId);
-            setSyncState("synced");
+            if (!syncStopped) setSyncState("synced");
           } catch (err) {
             console.error("Sync pull error:", err);
-            setSyncState("error");
+            if (!syncStopped) setSyncState("error");
           }
         }
       );
     })
     .catch((err) => {
       console.error("Failed to start sync:", err);
-      setSyncState("error");
+      if (!syncStopped) setSyncState("error");
     });
 }
 
@@ -53,7 +66,6 @@ async function applyRemoteChanges(result: any, localTeamId: string) {
 
   // Apply collections
   for (const col of collections || []) {
-    // Skip echo (our own changes bouncing back)
     if (recentlyPushedClientIds.has(col.clientId)) continue;
 
     if (col.deleted) {
@@ -66,7 +78,8 @@ async function applyRemoteChanges(result: any, localTeamId: string) {
           parent_id: col.parentClientId || null,
           name: col.name,
           sort_order: col.sortOrder,
-          created_at: new Date(col.updatedAt).toISOString(),
+          // Use _creationTime for created_at (preserves original creation time)
+          created_at: new Date(col._creationTime ?? col.updatedAt).toISOString(),
           updated_at: new Date(col.updatedAt).toISOString(),
         },
       });
@@ -94,7 +107,7 @@ async function applyRemoteChanges(result: any, localTeamId: string) {
           pre_script: req.preScript,
           post_script: req.postScript,
           sort_order: req.sortOrder,
-          created_at: new Date(req.updatedAt).toISOString(),
+          created_at: new Date(req._creationTime ?? req.updatedAt).toISOString(),
           updated_at: new Date(req.updatedAt).toISOString(),
         },
       });
@@ -114,7 +127,7 @@ async function applyRemoteChanges(result: any, localTeamId: string) {
           team_id: localTeamId,
           name: env.name,
           variables: JSON.parse(env.variables || "[]"),
-          created_at: new Date(env.updatedAt).toISOString(),
+          created_at: new Date(env._creationTime ?? env.updatedAt).toISOString(),
           updated_at: new Date(env.updatedAt).toISOString(),
         },
       });
@@ -143,13 +156,16 @@ async function applyRemoteChanges(result: any, localTeamId: string) {
   }
 
   // Update sync cursor
-  const maxUpdatedAt = Math.max(
-    ...([...(collections || []), ...(requests || []), ...(environments || [])].map(
-      (e: any) => e.updatedAt || 0
-    )),
+  const allItems = [
+    ...(collections || []),
+    ...(requests || []),
+    ...(environments || []),
+  ];
+  const timestamps = [
+    ...allItems.map((e: any) => e.updatedAt || 0),
     ...(history || []).map((h: any) => h._creationTime || 0),
-    0
-  );
+  ];
+  const maxUpdatedAt = timestamps.length > 0 ? Math.max(...timestamps) : 0;
 
   if (maxUpdatedAt > 0) {
     const currentState = await invoke<{ lastPullAt: number; lastPushAt: number }>(
@@ -170,6 +186,10 @@ export function schedulePush(convexTeamId: string, localTeamId: string) {
 }
 
 async function pushChanges(convexTeamId: string, localTeamId: string) {
+  // Guard against concurrent pushes
+  if (isPushing) return;
+  isPushing = true;
+
   try {
     setSyncState("syncing");
     const teamId = convexTeamId as Id<"teams">;
@@ -240,26 +260,26 @@ async function pushChanges(convexTeamId: string, localTeamId: string) {
       responseBodyPreview: h.response_body_preview,
     }));
 
-    const deletions = (deletes || []).map((d) => ({
-      entityType: d.entityType,
-      clientId: d.entityId,
-    }));
+    // Map singular entity types from Rust to plural Convex table names
+    const deletions = (deletes || [])
+      .map((d) => ({
+        ...d,
+        mappedType: ENTITY_TYPE_MAP[d.entityType],
+      }))
+      .filter((d) => d.mappedType !== undefined)
+      .map((d) => ({
+        entityType: d.mappedType!,
+        clientId: d.entityId,
+      }));
 
     // Only push if there's something to push
     if (collections.length || requests.length || environments.length || history.length || deletions.length) {
-      // Track pushed client IDs to avoid echo
-      for (const c of collections) recentlyPushedClientIds.add(c.clientId);
-      for (const r of requests) recentlyPushedClientIds.add(r.clientId);
-      for (const e of environments) recentlyPushedClientIds.add(e.clientId);
-      for (const h of history) recentlyPushedClientIds.add(h.clientId);
-
-      // Clear old tracked IDs after 10s
-      setTimeout(() => {
-        for (const c of collections) recentlyPushedClientIds.delete(c.clientId);
-        for (const r of requests) recentlyPushedClientIds.delete(r.clientId);
-        for (const e of environments) recentlyPushedClientIds.delete(e.clientId);
-        for (const h of history) recentlyPushedClientIds.delete(h.clientId);
-      }, 10000);
+      const allClientIds = [
+        ...collections.map((c) => c.clientId),
+        ...requests.map((r) => r.clientId),
+        ...environments.map((e) => e.clientId),
+        ...history.map((h) => h.clientId),
+      ];
 
       const client = getConvexClient();
       await client.mutation(api.sync.push, {
@@ -271,29 +291,38 @@ async function pushChanges(convexTeamId: string, localTeamId: string) {
         deletions,
       });
 
+      // Track pushed IDs AFTER successful push to avoid suppressing on failure
+      for (const id of allClientIds) recentlyPushedClientIds.add(id);
+      setTimeout(() => {
+        for (const id of allClientIds) recentlyPushedClientIds.delete(id);
+      }, 10000);
+
       // Mark deletes as synced
       if (deletes.length) {
         await invoke("mark_deletes_synced", { ids: deletes.map((d) => d.id) });
       }
-    }
 
-    // Update push timestamp
-    const now = Date.now();
-    lastPushedAt = now;
-    await invoke("set_sync_state", {
-      teamId: localTeamId,
-      lastPull: syncState.lastPullAt,
-      lastPush: now,
-    });
+      // Update push timestamp only when data was actually pushed
+      const now = Date.now();
+      lastPushedAt = now;
+      await invoke("set_sync_state", {
+        teamId: localTeamId,
+        lastPull: syncState.lastPullAt,
+        lastPush: now,
+      });
+    }
 
     setSyncState("synced");
   } catch (err) {
     console.error("Sync push error:", err);
     setSyncState("error");
+  } finally {
+    isPushing = false;
   }
 }
 
 export function stopSync() {
+  syncStopped = true;
   if (unsubscribe) {
     unsubscribe();
     unsubscribe = null;

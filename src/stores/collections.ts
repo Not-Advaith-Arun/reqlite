@@ -77,33 +77,13 @@ export async function addCollection(name: string, parentId: string | null = null
   await loadCollections(teamId);
 }
 
-async function deleteCollectionRecursive(id: string) {
-  // Delete all requests in this collection first
-  const reqs = await api.listRequests(id);
-  for (const req of reqs) {
-    await api.deleteRequest(req.id);
-  }
-  // Delete child collections recursively
-  const teamId = activeTeam();
-  if (teamId) {
-    const allCols = await api.listCollections(teamId);
-    const children = allCols.filter(c => c.parent_id === id);
-    for (const child of children) {
-      await deleteCollectionRecursive(child.id);
-    }
-  }
-  // Now delete the empty collection
-  await api.deleteCollection(id);
-}
-
 export async function removeCollection(id: string) {
-  try {
-    await deleteCollectionRecursive(id);
-  } catch (err) {
-    console.error("Failed to delete collection:", err);
-  }
   const teamId = activeTeam();
-  if (teamId) await loadCollections(teamId);
+  if (!teamId) return;
+
+  // Rust backend handles recursive deletion of children + tombstone creation
+  await api.deleteCollection(id);
+  await loadCollections(teamId);
 }
 
 export async function addRequest(collectionId: string, name: string, method: string = "GET") {

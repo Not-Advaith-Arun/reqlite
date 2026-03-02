@@ -1,4 +1,4 @@
-import { query, mutation } from "./_generated/server";
+import { query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
 export const getMe = query({
@@ -23,41 +23,12 @@ export const getMe = query({
     );
 
     return {
-      ...user,
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      image: user.image,
+      githubId: user.githubId,
       teams: teams.filter(Boolean),
     };
-  },
-});
-
-export const ensurePersonalTeam = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    const memberships = await ctx.db
-      .query("teamMembers")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .collect();
-
-    for (const m of memberships) {
-      const team = await ctx.db.get(m.teamId);
-      if (team?.isPersonal) return team;
-    }
-
-    // No personal team found, create one
-    const teamId = await ctx.db.insert("teams", {
-      name: "Personal",
-      createdBy: userId,
-      isPersonal: true,
-    });
-
-    await ctx.db.insert("teamMembers", {
-      teamId,
-      userId,
-      role: "owner",
-    });
-
-    return await ctx.db.get(teamId);
   },
 });

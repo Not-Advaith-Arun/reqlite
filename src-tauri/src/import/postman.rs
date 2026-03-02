@@ -14,6 +14,7 @@ struct PostmanCollection {
 struct PostmanInfo {
     name: String,
     #[serde(default)]
+    #[allow(dead_code)]
     description: Option<String>,
 }
 

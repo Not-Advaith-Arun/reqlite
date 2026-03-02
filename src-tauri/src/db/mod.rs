@@ -119,15 +119,7 @@ impl Database {
 
     pub fn delete_collection(&self, id: &str) -> Result<(), rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
-        let tombstone_id = ulid::Ulid::new().to_string();
-        let now = chrono::Utc::now().to_rfc3339();
-        conn.execute(
-            "INSERT OR IGNORE INTO deleted_entities (id, entity_type, entity_id, deleted_at, synced) VALUES (?1, 'collection', ?2, ?3, 0)",
-            rusqlite::params![tombstone_id, id, now],
-        )?;
-        conn.execute("DELETE FROM requests WHERE collection_id = ?1", [id])?;
-        conn.execute("DELETE FROM collections WHERE parent_id = ?1", [id])?;
-        conn.execute("DELETE FROM collections WHERE id = ?1", [id])?;
+        Self::delete_collection_tree_with_tombstones(&conn, id)?;
         Ok(())
     }
 
@@ -469,9 +461,8 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         match entity_type {
             "collection" => {
-                conn.execute("DELETE FROM requests WHERE collection_id = ?1", [entity_id])?;
-                conn.execute("DELETE FROM collections WHERE parent_id = ?1", [entity_id])?;
-                conn.execute("DELETE FROM collections WHERE id = ?1", [entity_id])?;
+                // Recursively delete all descendant collections and their requests
+                Self::delete_collection_tree(&conn, entity_id)?;
             }
             "request" => {
                 conn.execute("DELETE FROM requests WHERE id = ?1", [entity_id])?;
@@ -484,17 +475,61 @@ impl Database {
         Ok(())
     }
 
-    // Sync: record a deletion in the tombstone table
-    pub fn record_deletion(&self, entity_type: &str, entity_id: &str) -> Result<(), rusqlite::Error> {
-        let conn = self.conn.lock().unwrap();
-        let id = ulid::Ulid::new().to_string();
-        let now = chrono::Utc::now().to_rfc3339();
-        conn.execute(
-            "INSERT OR IGNORE INTO deleted_entities (id, entity_type, entity_id, deleted_at, synced) VALUES (?1, ?2, ?3, ?4, 0)",
-            rusqlite::params![id, entity_type, entity_id, now],
-        )?;
+    /// Recursively delete a collection tree without creating tombstones (for remote-originated deletes)
+    fn delete_collection_tree(conn: &Connection, collection_id: &str) -> Result<(), rusqlite::Error> {
+        let mut stmt = conn.prepare("SELECT id FROM collections WHERE parent_id = ?1")?;
+        let child_ids: Vec<String> = stmt
+            .query_map([collection_id], |row| row.get(0))?
+            .collect::<Result<_, _>>()?;
+
+        for child_id in &child_ids {
+            Self::delete_collection_tree(conn, child_id)?;
+        }
+
+        conn.execute("DELETE FROM requests WHERE collection_id = ?1", [collection_id])?;
+        conn.execute("DELETE FROM collections WHERE id = ?1", [collection_id])?;
         Ok(())
     }
+
+    /// Recursively delete a collection tree AND create tombstones for sync (for local deletes)
+    fn delete_collection_tree_with_tombstones(conn: &Connection, collection_id: &str) -> Result<(), rusqlite::Error> {
+        let mut stmt = conn.prepare("SELECT id FROM collections WHERE parent_id = ?1")?;
+        let child_ids: Vec<String> = stmt
+            .query_map([collection_id], |row| row.get(0))?
+            .collect::<Result<_, _>>()?;
+
+        for child_id in &child_ids {
+            Self::delete_collection_tree_with_tombstones(conn, child_id)?;
+        }
+
+        // Create tombstones for requests in this collection
+        let now = chrono::Utc::now().to_rfc3339();
+        let mut req_stmt = conn.prepare("SELECT id FROM requests WHERE collection_id = ?1")?;
+        let req_ids: Vec<String> = req_stmt
+            .query_map([collection_id], |row| row.get(0))?
+            .collect::<Result<_, _>>()?;
+
+        for req_id in &req_ids {
+            let tombstone_id = ulid::Ulid::new().to_string();
+            conn.execute(
+                "INSERT OR IGNORE INTO deleted_entities (id, entity_type, entity_id, deleted_at, synced) VALUES (?1, 'request', ?2, ?3, 0)",
+                rusqlite::params![tombstone_id, req_id, now],
+            )?;
+        }
+
+        // Create tombstone for this collection
+        let tombstone_id = ulid::Ulid::new().to_string();
+        conn.execute(
+            "INSERT OR IGNORE INTO deleted_entities (id, entity_type, entity_id, deleted_at, synced) VALUES (?1, 'collection', ?2, ?3, 0)",
+            rusqlite::params![tombstone_id, collection_id, now],
+        )?;
+
+        // Hard delete
+        conn.execute("DELETE FROM requests WHERE collection_id = ?1", [collection_id])?;
+        conn.execute("DELETE FROM collections WHERE id = ?1", [collection_id])?;
+        Ok(())
+    }
+
 
     // Sync state
     pub fn get_sync_state(&self, team_id: &str) -> Result<(i64, i64), rusqlite::Error> {

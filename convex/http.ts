@@ -18,6 +18,7 @@ http.route({
 
     if (code) {
       const deepLink = `tenso://auth/callback?code=${encodeURIComponent(code)}`;
+      const safeCode = code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
       const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -38,7 +39,7 @@ http.route({
     <h1>Redirecting to Tenso...</h1>
     <p>If the app didn't open automatically, click the button below.</p>
     <a href="${deepLink}">Open Tenso</a>
-    <p style="margin-top: 2rem; font-size: 0.8rem;">Or manually enter code: <span class="code">${code}</span></p>
+    <p style="margin-top: 2rem; font-size: 0.8rem;">Or manually enter code: <span class="code">${safeCode}</span></p>
   </div>
   <script>window.location.href = "${deepLink}";</script>
 </body>

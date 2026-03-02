@@ -1,29 +1,7 @@
 import { query, mutation, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
-
-async function assertTeamMember(
-  ctx: any,
-  teamId: any,
-  userId: any
-) {
-  const membership = await ctx.db
-    .query("teamMembers")
-    .withIndex("by_team_user", (q: any) => q.eq("teamId", teamId).eq("userId", userId))
-    .first();
-  if (!membership) throw new Error("Not a team member");
-  return membership;
-}
-
-async function assertTeamOwner(
-  ctx: any,
-  teamId: any,
-  userId: any
-) {
-  const membership = await assertTeamMember(ctx, teamId, userId);
-  if (membership.role !== "owner") throw new Error("Not a team owner");
-  return membership;
-}
+import { assertTeamMember, assertTeamOwner } from "./lib";
 
 export const list = query({
   args: {},
@@ -53,8 +31,13 @@ export const create = mutation({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
+    const name = args.name.trim();
+    if (!name || name.length > 100) {
+      throw new Error("Team name must be 1-100 characters");
+    }
+
     const teamId = await ctx.db.insert("teams", {
-      name: args.name,
+      name,
       createdBy: userId,
       isPersonal: false,
     });
@@ -77,13 +60,19 @@ export const invite = mutation({
 
     await assertTeamOwner(ctx, args.teamId, userId);
 
+    // Basic email validation + normalize to lowercase
+    const email = args.email.trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new Error("Invalid email address");
+    }
+
     // Check if already invited
     const existing = await ctx.db
       .query("teamInvites")
       .withIndex("by_team", (q) => q.eq("teamId", args.teamId))
       .filter((q) =>
         q.and(
-          q.eq(q.field("email"), args.email),
+          q.eq(q.field("email"), email),
           q.eq(q.field("status"), "pending")
         )
       )
@@ -94,7 +83,7 @@ export const invite = mutation({
     // Check if blocked
     const blocked = await ctx.db
       .query("teamInvites")
-      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .withIndex("by_email", (q) => q.eq("email", email))
       .filter((q) =>
         q.and(
           q.eq(q.field("teamId"), args.teamId),
@@ -108,7 +97,7 @@ export const invite = mutation({
     // Check if already a member by email
     const existingUser = await ctx.db
       .query("users")
-      .withIndex("email", (q) => q.eq("email", args.email))
+      .withIndex("email", (q) => q.eq("email", email))
       .first();
 
     if (existingUser) {
@@ -125,7 +114,7 @@ export const invite = mutation({
 
     await ctx.db.insert("teamInvites", {
       teamId: args.teamId,
-      email: args.email,
+      email,
       invitedBy: userId,
       status: "pending",
       token,
@@ -150,13 +139,11 @@ export const acceptInvite = mutation({
     if (invite.status !== "pending") throw new Error("Invite already used");
 
     const user = await ctx.db.get(userId);
-    if (!user || user.email !== invite.email) {
+    if (!user || (user.email ?? "").toLowerCase() !== invite.email) {
       throw new Error("Invite email does not match your account");
     }
 
-    await ctx.db.patch(invite._id, { status: "accepted" });
-
-    // Check not already a member
+    // Insert membership BEFORE marking invite as accepted
     const existing = await ctx.db
       .query("teamMembers")
       .withIndex("by_team_user", (q) =>
@@ -171,6 +158,9 @@ export const acceptInvite = mutation({
         role: "member",
       });
     }
+
+    // Only mark accepted after membership is confirmed
+    await ctx.db.patch(invite._id, { status: "accepted" });
 
     return invite.teamId;
   },
@@ -195,9 +185,9 @@ export const removeMember = mutation({
       )
       .first();
 
-    if (membership) {
-      await ctx.db.delete(membership._id);
-    }
+    if (!membership) throw new Error("User is not a member of this team");
+
+    await ctx.db.delete(membership._id);
   },
 });
 
@@ -260,43 +250,41 @@ export const pendingInvites = query({
   },
 });
 
+// Shared handler for declining/blocking invites
+async function respondToInvite(
+  ctx: any,
+  token: string,
+  newStatus: "declined" | "blocked"
+) {
+  const userId = await getAuthUserId(ctx);
+  if (!userId) throw new Error("Not authenticated");
+
+  const invite = await ctx.db
+    .query("teamInvites")
+    .withIndex("by_token", (q: any) => q.eq("token", token))
+    .first();
+
+  if (!invite || invite.status !== "pending") throw new Error("Invite not found");
+
+  const user = await ctx.db.get(userId);
+  if (!user || (user.email ?? "").toLowerCase() !== invite.email) {
+    throw new Error("Not your invite");
+  }
+
+  await ctx.db.patch(invite._id, { status: newStatus });
+}
+
 export const declineInvite = mutation({
   args: { token: v.string() },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    const invite = await ctx.db
-      .query("teamInvites")
-      .withIndex("by_token", (q) => q.eq("token", args.token))
-      .first();
-
-    if (!invite || invite.status !== "pending") throw new Error("Invite not found");
-
-    const user = await ctx.db.get(userId);
-    if (!user || user.email !== invite.email) throw new Error("Not your invite");
-
-    await ctx.db.patch(invite._id, { status: "declined" });
+    await respondToInvite(ctx, args.token, "declined");
   },
 });
 
 export const blockInvite = mutation({
   args: { token: v.string() },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    const invite = await ctx.db
-      .query("teamInvites")
-      .withIndex("by_token", (q) => q.eq("token", args.token))
-      .first();
-
-    if (!invite || invite.status !== "pending") throw new Error("Invite not found");
-
-    const user = await ctx.db.get(userId);
-    if (!user || user.email !== invite.email) throw new Error("Not your invite");
-
-    await ctx.db.patch(invite._id, { status: "blocked" });
+    await respondToInvite(ctx, args.token, "blocked");
   },
 });
 
@@ -310,6 +298,7 @@ export const cleanupInvites = internalMutation({
       .filter((q) =>
         q.and(
           q.neq(q.field("status"), "pending"),
+          q.neq(q.field("status"), "blocked"),
           q.lt(q.field("_creationTime"), thirtyDaysAgo)
         )
       )

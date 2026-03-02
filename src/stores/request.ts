@@ -114,8 +114,12 @@ export function closeOtherTabs(keepTabId: string) {
   }
 }
 
+// Fields that indicate user edits (not internal state changes like loading/response)
+const DIRTY_FIELDS = new Set(["name", "method", "url", "protocol", "headers", "params", "body", "auth", "preScript", "postScript"]);
+
 export function updateTab(tabId: string, updates: Partial<Tab>) {
-  setTabs(tabs().map(t => t.id === tabId ? { ...t, ...updates, dirty: true } : t));
+  const shouldDirty = Object.keys(updates).some((k) => DIRTY_FIELDS.has(k));
+  setTabs(tabs().map(t => t.id === tabId ? { ...t, ...updates, ...(shouldDirty ? { dirty: true } : {}) } : t));
 }
 
 export function getActiveTab(): Tab | undefined {
@@ -206,12 +210,15 @@ export async function saveRequest(tabId: string) {
 
   // Get the real collection_id from the original request
   const original = await api.getRequest(tab.savedRequestId);
-  if (original) {
-    saved.collection_id = original.collection_id;
-    saved.sort_order = original.sort_order;
-    saved.created_at = original.created_at;
+  if (!original) {
+    console.error("Cannot save: request no longer exists", tab.savedRequestId);
+    return;
   }
 
+  saved.collection_id = original.collection_id;
+  saved.sort_order = original.sort_order;
+  saved.created_at = original.created_at;
+
   await api.updateRequest(saved);
-  updateTab(tabId, { dirty: false });
+  setTabs(tabs().map(t => t.id === tabId ? { ...t, dirty: false } : t));
 }

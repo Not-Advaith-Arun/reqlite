@@ -59,6 +59,7 @@ export default defineSchema({
   })
     .index("by_team", ["teamId"])
     .index("by_clientId", ["clientId"])
+    .index("by_team_clientId", ["teamId", "clientId"])
     .index("by_team_updated", ["teamId", "updatedAt"]),
 
   requests: defineTable({
@@ -80,6 +81,7 @@ export default defineSchema({
   })
     .index("by_team", ["teamId"])
     .index("by_clientId", ["clientId"])
+    .index("by_team_clientId", ["teamId", "clientId"])
     .index("by_collection", ["collectionClientId"])
     .index("by_team_updated", ["teamId", "updatedAt"]),
 
@@ -93,6 +95,7 @@ export default defineSchema({
   })
     .index("by_team", ["teamId"])
     .index("by_clientId", ["clientId"])
+    .index("by_team_clientId", ["teamId", "clientId"])
     .index("by_team_updated", ["teamId", "updatedAt"]),
 
   history: defineTable({
@@ -111,5 +114,6 @@ export default defineSchema({
   })
     .index("by_team", ["teamId"])
     .index("by_clientId", ["clientId"])
+    .index("by_team_clientId", ["teamId", "clientId"])
     .index("by_team_timestamp", ["teamId", "timestamp"]),
 });
