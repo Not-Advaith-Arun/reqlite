@@ -13,7 +13,7 @@ interface Props {
   onUrlChange: (url: string) => void;
   onProtocolChange: (protocol: string) => void;
   onSend: () => void;
-  onCurlPaste?: (parsed: { method: string; url: string; headers: api.KeyValue[]; body: api.RequestBody }) => void;
+  onCurlPaste?: (parsed: { method: string; url: string; headers: api.KeyValue[]; params: api.KeyValue[]; body: api.RequestBody; auth: api.AuthConfig }) => void;
 }
 
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
@@ -250,6 +250,28 @@ export const UrlBar: Component<Props> = (props) => {
     }
   };
 
+  const extractQueryParams = (url: string): { baseUrl: string; params: api.KeyValue[] } => {
+    const qIdx = url.indexOf("?");
+    if (qIdx === -1) return { baseUrl: url, params: [] };
+    const baseUrl = url.slice(0, qIdx);
+    const queryStr = url.slice(qIdx + 1);
+    const params: api.KeyValue[] = [];
+    for (const pair of queryStr.split("&")) {
+      if (!pair) continue;
+      const eqIdx = pair.indexOf("=");
+      if (eqIdx === -1) {
+        params.push({ key: decodeURIComponent(pair), value: "", enabled: true });
+      } else {
+        params.push({
+          key: decodeURIComponent(pair.slice(0, eqIdx)),
+          value: decodeURIComponent(pair.slice(eqIdx + 1)),
+          enabled: true,
+        });
+      }
+    }
+    return { baseUrl, params };
+  };
+
   const handlePaste = async (e: ClipboardEvent) => {
     const text = e.clipboardData?.getData("text")?.trim();
     if (!text) return;
@@ -258,11 +280,16 @@ export const UrlBar: Component<Props> = (props) => {
       e.preventDefault();
       try {
         const parsed = await api.importCurl(text);
+        const { baseUrl, params: queryParams } = extractQueryParams(parsed.url);
+        // Merge query params with any params from the backend parse
+        const allParams = [...(parsed.params || []), ...queryParams];
         props.onCurlPaste({
           method: parsed.method,
-          url: parsed.url,
+          url: queryParams.length > 0 ? baseUrl : parsed.url,
           headers: parsed.headers,
+          params: allParams,
           body: parsed.body,
+          auth: parsed.auth,
         });
       } catch {
         // Not a valid cURL - just paste as normal text
