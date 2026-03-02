@@ -11,13 +11,10 @@ jobs:
   deploy-convex:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - run: npx convex deploy --cmd 'echo skip'
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bunx convex deploy --cmd 'echo skip'
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
 
@@ -38,7 +35,7 @@ jobs:
             label: linux
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Linux dependencies
         if: matrix.label == 'linux'
@@ -54,11 +51,11 @@ jobs:
             libsoup-3.0-dev \
             libjavascriptcoregtk-4.1-dev
 
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v6
         with:
           node-version: 20
-          cache: npm
-      - run: npm ci
+      - run: bun install --frozen-lockfile
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -79,9 +76,9 @@ jobs:
         shell: bash
         run: |
           if [ -n "${{ matrix.target }}" ]; then
-            npm run tauri build -- --target ${{ matrix.target }}
+            bun run tauri build -- --target ${{ matrix.target }}
           else
-            npm run tauri build
+            bun run tauri build
           fi
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -89,7 +86,7 @@ jobs:
 
       - name: Upload macOS artifacts
         if: matrix.label == 'macos'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: macos-artifacts
           path: |
@@ -99,7 +96,7 @@ jobs:
 
       - name: Upload Windows artifacts
         if: matrix.label == 'windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-artifacts
           path: |
@@ -110,7 +107,7 @@ jobs:
 
       - name: Upload Linux artifacts
         if: matrix.label == 'linux'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-artifacts
           path: |
@@ -124,11 +121,11 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           merge-multiple: true
           path: artifacts
@@ -189,12 +186,11 @@ jobs:
         run: |
           chmod +x scripts/generate-changelog.sh
           CHANGELOG=$(./scripts/generate-changelog.sh "${{ steps.version.outputs.version }}")
-          # Write to file to avoid delimiter issues
           echo "$CHANGELOG" > changelog.md
           echo "Changelog generated"
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v2.5.0
         with:
           draft: true
           body_path: changelog.md

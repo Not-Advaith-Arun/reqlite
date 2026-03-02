@@ -23,7 +23,7 @@ rm -f src-tauri/Cargo.toml.bak
 
 git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
 git commit -m "release: v$VERSION"
-git tag "v$VERSION"
-git push --follow-tags
+git tag -a "v$VERSION" -m "v$VERSION"
+git push && git push origin "v$VERSION"
 
 echo "Released v$VERSION"
