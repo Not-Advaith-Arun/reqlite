@@ -94,6 +94,21 @@ export function closeTab(tabId: string) {
   }
 }
 
+export function closeAllTabs() {
+  setTabs([]);
+  setActiveTabId(null);
+}
+
+export function closeOtherTabs(keepTabId: string) {
+  const kept = tabs().filter(t => t.id === keepTabId);
+  setTabs(kept);
+  if (kept.length > 0) {
+    setActiveTabId(kept[0].id);
+  } else {
+    setActiveTabId(null);
+  }
+}
+
 export function updateTab(tabId: string, updates: Partial<Tab>) {
   setTabs(tabs().map(t => t.id === tabId ? { ...t, ...updates, dirty: true } : t));
 }

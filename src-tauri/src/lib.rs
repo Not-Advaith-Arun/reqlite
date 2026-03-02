@@ -59,6 +59,7 @@ pub fn run() {
             commands::history::clear_history,
             commands::import::import_curl,
             commands::import::import_openapi,
+            commands::import::import_postman,
             commands::codegen::generate_code,
             commands::scripting::run_script,
             commands::websocket::ws_connect,

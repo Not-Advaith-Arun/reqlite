@@ -8,12 +8,12 @@ interface Props {
 
 type ResponseTab = "body" | "headers" | "timing";
 
-const STATUS_COLORS: Record<string, string> = {
-  "2": "var(--success)",
-  "3": "var(--accent)",
-  "4": "var(--warning)",
-  "5": "var(--error)",
-};
+function getStatusClass(status: number): string {
+  if (status >= 200 && status < 300) return "success";
+  if (status >= 300 && status < 400) return "success";
+  if (status >= 400 && status < 500) return "warning";
+  return "error";
+}
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -50,17 +50,18 @@ export const ResponsePanel: Component<Props> = (props) => {
 
       <Show when={!props.loading && !props.response}>
         <div class="response-empty">
-          <span class="response-empty-icon">⚡</span>
-          <span>Send a request to see the response</span>
+          <span class="response-empty-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+            </svg>
+          </span>
+          <span style={{ "font-size": "13px" }}>Send a request to see the response</span>
         </div>
       </Show>
 
       <Show when={!props.loading && props.response}>
         <div class="response-meta">
-          <span
-            class="response-status"
-            style={{ color: STATUS_COLORS[String(props.response!.status)[0]] || "var(--text-primary)" }}
-          >
+          <span class={`response-status ${getStatusClass(props.response!.status)}`}>
             {props.response!.status} {props.response!.status_text}
           </span>
           <span class="response-timing">{props.response!.timing.total_ms}ms</span>
@@ -84,7 +85,14 @@ export const ResponsePanel: Component<Props> = (props) => {
               class={`icon-btn small ${wordWrap() ? "active" : ""}`}
               onClick={() => setWordWrap(!wordWrap())}
               title="Word wrap"
-            >↩</button>
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="17 1 21 5 17 9" />
+                <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+                <polyline points="7 23 3 19 7 15" />
+                <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+              </svg>
+            </button>
           </div>
         </div>
 

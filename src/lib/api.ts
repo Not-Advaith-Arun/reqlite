@@ -152,6 +152,15 @@ export const clearHistory = (workspaceId: string) => invoke<void>("clear_history
 export const importCurl = (curlCommand: string) => invoke<SavedRequest>("import_curl", { curlCommand });
 export const importOpenapi = (specJson: string, workspaceId: string) => invoke<Collection[]>("import_openapi", { specJson, workspaceId });
 
+export interface ImportedCollection {
+  name: string;
+  children: ImportedCollection[];
+  requests: SavedRequest[];
+  variables: KeyValue[];
+}
+
+export const importPostman = (jsonContent: string) => invoke<ImportedCollection>("import_postman", { jsonContent });
+
 // Code Generation API
 export const generateCode = (method: string, url: string, headers: KeyValue[], body: RequestBody, language: string) =>
   invoke<string>("generate_code", { method, url, headers, body, language });
