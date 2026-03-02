@@ -15,9 +15,15 @@ export const TitleBar: Component = () => {
     onCleanup(() => unlisten());
   });
 
-  const handleMinimize = () => appWindow.minimize();
-  const handleMaximize = () => appWindow.toggleMaximize();
-  const handleClose = () => appWindow.close();
+  const handleMinimize = () => {
+    appWindow.minimize().catch(console.error);
+  };
+  const handleMaximize = () => {
+    appWindow.toggleMaximize().catch(console.error);
+  };
+  const handleClose = () => {
+    appWindow.close().catch(console.error);
+  };
 
   return (
     <div class="titlebar" data-tauri-drag-region>

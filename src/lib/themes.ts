@@ -6,6 +6,8 @@ export interface ThemePreset {
 }
 
 const STORAGE_KEY = "reqlite-theme";
+const COLORS_KEY = "reqlite-theme-colors";
+const CUSTOM_THEMES_KEY = "reqlite-custom-themes";
 
 export const themes: ThemePreset[] = [
   {
@@ -332,18 +334,171 @@ export const themes: ThemePreset[] = [
 
 export function applyTheme(key: string) {
   const theme = themes.find(t => t.key === key);
-  if (!theme) return;
+  if (theme) {
+    applyThemeColors(theme.colors, key);
+    return;
+  }
 
+  // Check custom themes
+  const custom = getCustomThemes().find(t => t.key === key);
+  if (custom) {
+    applyThemeColors(custom.colors, key);
+    return;
+  }
+
+  // Restore community theme from persisted colors
+  try {
+    const stored = localStorage.getItem(COLORS_KEY);
+    if (stored) {
+      const colors = JSON.parse(stored) as Record<string, string>;
+      applyThemeColors(colors, key);
+      return;
+    }
+  } catch {
+    // Fall through to default
+  }
+
+  // Fallback to default theme
+  const fallback = themes[0];
+  applyThemeColors(fallback.colors, fallback.key);
+}
+
+export function applyThemeColors(colors: Record<string, string>, key: string) {
   const root = document.documentElement;
-  for (const [prop, value] of Object.entries(theme.colors)) {
+  for (const [prop, value] of Object.entries(colors)) {
     root.style.setProperty(prop, value);
   }
 
   root.removeAttribute("data-theme");
 
   localStorage.setItem(STORAGE_KEY, key);
+  // Persist color map for community themes so they survive app restart
+  localStorage.setItem(COLORS_KEY, JSON.stringify(colors));
 }
 
 export function getStoredTheme(): string {
   return localStorage.getItem(STORAGE_KEY) || "tokyo-night";
+}
+
+const FAVORITES_KEY = "reqlite-theme-favorites";
+
+export function getFavorites(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+export function toggleFavorite(key: string): string[] {
+  const favs = getFavorites();
+  const idx = favs.indexOf(key);
+  if (idx >= 0) {
+    favs.splice(idx, 1);
+  } else {
+    favs.push(key);
+  }
+  localStorage.setItem(FAVORITES_KEY, JSON.stringify(favs));
+  return favs;
+}
+
+// ===== Custom Themes =====
+
+export function getCustomThemes(): ThemePreset[] {
+  try {
+    return JSON.parse(localStorage.getItem(CUSTOM_THEMES_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+export function saveCustomTheme(theme: ThemePreset): void {
+  const customs = getCustomThemes();
+  const idx = customs.findIndex(t => t.key === theme.key);
+  if (idx >= 0) {
+    customs[idx] = theme;
+  } else {
+    customs.push(theme);
+  }
+  localStorage.setItem(CUSTOM_THEMES_KEY, JSON.stringify(customs));
+}
+
+export function deleteCustomTheme(key: string): void {
+  const customs = getCustomThemes().filter(t => t.key !== key);
+  localStorage.setItem(CUSTOM_THEMES_KEY, JSON.stringify(customs));
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const m = hex.match(/^#([0-9a-f]{6})$/i);
+  if (!m) return null;
+  return {
+    r: parseInt(m[1].slice(0, 2), 16),
+    g: parseInt(m[1].slice(2, 4), 16),
+    b: parseInt(m[1].slice(4, 6), 16),
+  };
+}
+
+function lighten(hex: string, pct: number): string {
+  const c = hexToRgb(hex);
+  if (!c) return hex;
+  const f = pct / 100;
+  const r = Math.min(255, Math.round(c.r + (255 - c.r) * f));
+  const g = Math.min(255, Math.round(c.g + (255 - c.g) * f));
+  const b = Math.min(255, Math.round(c.b + (255 - c.b) * f));
+  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+}
+
+function darken(hex: string, pct: number): string {
+  const c = hexToRgb(hex);
+  if (!c) return hex;
+  const f = 1 - pct / 100;
+  const r = Math.round(c.r * f);
+  const g = Math.round(c.g * f);
+  const b = Math.round(c.b * f);
+  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+}
+
+function withAlpha(hex: string, alpha: number): string {
+  const c = hexToRgb(hex);
+  if (!c) return hex;
+  return `rgba(${c.r}, ${c.g}, ${c.b}, ${alpha})`;
+}
+
+export function deriveFullColors(base: Record<string, string>): Record<string, string> {
+  const accent = base["--accent"] || "#7aa2f7";
+  const bgPrimary = base["--bg-primary"] || "#16161e";
+  const bgSurface = base["--bg-surface"] || base["--bg-tertiary"] || "#1f2335";
+  const textMuted = base["--text-muted"] || "#565f89";
+  const border = base["--border"] || "#292e42";
+  const success = base["--success"] || "#9ece6a";
+  const warning = base["--warning"] || "#e0af68";
+  const error = base["--error"] || "#f7768e";
+
+  return {
+    "--bg-primary": bgPrimary,
+    "--bg-secondary": base["--bg-secondary"] || "#1a1b26",
+    "--bg-tertiary": base["--bg-tertiary"] || "#24283b",
+    "--bg-surface": bgSurface,
+    "--bg-hover": lighten(bgPrimary, 8),
+    "--bg-active": lighten(bgPrimary, 12),
+    "--text-primary": base["--text-primary"] || "#c0caf5",
+    "--text-secondary": base["--text-secondary"] || "#a9b1d6",
+    "--text-muted": textMuted,
+    "--text-dim": darken(textMuted, 30),
+    "--border": border,
+    "--border-subtle": bgSurface,
+    "--accent": accent,
+    "--accent-hover": lighten(accent, 15),
+    "--accent-dim": withAlpha(accent, 0.12),
+    "--accent-glow": withAlpha(accent, 0.25),
+    "--success": success,
+    "--success-dim": withAlpha(success, 0.12),
+    "--warning": warning,
+    "--warning-dim": withAlpha(warning, 0.12),
+    "--error": error,
+    "--error-dim": withAlpha(error, 0.12),
+    "--shadow-sm": "0 1px 2px rgba(0,0,0,0.3)",
+    "--shadow": "0 4px 12px rgba(0,0,0,0.4)",
+    "--shadow-lg": "0 8px 32px rgba(0,0,0,0.5)",
+  };
 }
