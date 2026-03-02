@@ -21,3 +21,4 @@ Thumbs.db
 *.db
 
 .env.local
+CLAUDE.md

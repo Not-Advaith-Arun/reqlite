@@ -105,10 +105,10 @@ sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
 cd reqlite
 
 # Install frontend dependencies
-bun install
+bun install   # or: npm install
 
 # Run in development mode (hot-reload)
-bun run tauri dev
+bun run tauri dev   # or: npm run tauri dev
 ```
 
 This launches the Vite dev server for the frontend and compiles/runs the Tauri Rust backend. The app window opens automatically.
@@ -118,7 +118,7 @@ This launches the Vite dev server for the frontend and compiles/runs the Tauri R
 ## Building for Production
 
 ```bash
-bun run tauri build
+bun run tauri build   # or: npm run tauri build
 ```
 
 Outputs:
@@ -134,13 +134,13 @@ Convex powers auth, teams, and real-time sync. The app works fully offline witho
 ### 1. Install Convex CLI
 
 ```bash
-bun add convex
+bun add convex   # or: npm install convex
 ```
 
 ### 2. Create a Convex project (first time only)
 
 ```bash
-bunx convex init
+npx convex init
 ```
 
 Or link to the existing project — the deployment config is in `.env.local`:
@@ -155,17 +155,17 @@ VITE_CONVEX_SITE_URL=https://shiny-porcupine-825.eu-west-1.convex.site
 
 ```bash
 # GitHub OAuth App credentials
-bunx convex env set AUTH_GITHUB_ID <your-github-oauth-client-id>
-bunx convex env set AUTH_GITHUB_SECRET <your-github-oauth-client-secret>
+npx convex env set AUTH_GITHUB_ID <your-github-oauth-client-id>
+npx convex env set AUTH_GITHUB_SECRET <your-github-oauth-client-secret>
 
 # Site URL (the Convex HTTP endpoint that serves the OAuth callback page)
-bunx convex env set SITE_URL <your-convex-site-url>
+npx convex env set SITE_URL <your-convex-site-url>
 
 # JWT keys (auto-generated)
-bunx @convex-dev/auth
+npx @convex-dev/auth
 ```
 
-The `bunx @convex-dev/auth` command auto-generates `JWT_PRIVATE_KEY` and `JWKS` env vars on your deployment.
+The `npx @convex-dev/auth` command auto-generates `JWT_PRIVATE_KEY` and `JWKS` env vars on your deployment.
 
 ### 4. Create a GitHub OAuth App
 
@@ -181,23 +181,23 @@ The `bunx @convex-dev/auth` command auto-generates `JWT_PRIVATE_KEY` and `JWKS` 
 
 ```bash
 # Development (watches for changes, auto-deploys)
-bunx convex dev
+npx convex dev
 
 # One-shot deploy
-bunx convex dev --once
+npx convex dev --once
 
 # Production deploy
-bunx convex deploy
+npx convex deploy
 ```
 
 ### 6. Verify deployment
 
 ```bash
 # Check tables exist
-bunx convex data --table users
+npx convex data --table users
 
 # Check functions are deployed
-bunx convex functions
+npx convex functions
 ```
 
 ### Convex Architecture
