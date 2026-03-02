@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "release": "./scripts/release.sh"
   },
   "dependencies": {
     "@auth/core": "^0.37.0",
@@ -22,7 +23,9 @@
     "@tanstack/solid-virtual": "^3.0.0",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-deep-link": "^2.4.7",
+    "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-shell": "^2.0.0",
+    "@tauri-apps/plugin-updater": "^2.10.0",
     "convex": "^1.32.0",
     "solid-js": "^1.9.0"
   },

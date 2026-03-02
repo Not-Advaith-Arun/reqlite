@@ -21,6 +21,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_updater::init())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             let app_handle = app.handle().clone();
             let data_dir = app_handle

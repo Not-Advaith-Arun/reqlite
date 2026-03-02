@@ -29,12 +29,21 @@
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["tenso"]
+        "schemes": [
+          "tenso"
+        ]
       }
+    },
+    "updater": {
+      "endpoints": [
+        "https://github.com/PatchPerson/Tenso/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDc5OTg1MEE1NDIxMzE1RjUKUldUMUZSTkNwVkNZZWZ0UTlwZjUweVNVMjBMdU81OWp3RFRta0JQLzVYUEdXaWZpUEozdUxKNkkK"
     }
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [
       "icons/32x32.png",
