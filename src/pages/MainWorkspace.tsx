@@ -96,7 +96,7 @@ export const MainWorkspace: Component = () => {
 
     const onMove = (e: MouseEvent) => {
       const rect = container.getBoundingClientRect();
-      const ratio = Math.max(0.2, Math.min(0.8, (e.clientY - rect.top) / rect.height));
+      const ratio = Math.max(0.2, Math.min(0.8, (e.clientX - rect.left) / rect.width));
       setSplitRatio(ratio);
     };
 
@@ -196,16 +196,16 @@ export const MainWorkspace: Component = () => {
             </div>
           }
         >
-          <div class="split-pane">
-            <div class="split-top" style={{ height: `${splitRatio() * 100}%` }}>
+          <div class="split-pane-horizontal">
+            <div class="split-left" style={{ width: `${splitRatio() * 100}%` }}>
               <RequestPanel
                 tab={activeTab()!}
                 onUpdate={(updates) => updateTab(activeTab()!.id, updates)}
                 onSend={() => executeRequest(activeTab()!.id, activeWorkspace())}
               />
             </div>
-            <div class="resize-handle horizontal" onMouseDown={handleSplitResize} />
-            <div class="split-bottom" style={{ height: `${(1 - splitRatio()) * 100}%` }}>
+            <div class="resize-handle vertical split-divider" onMouseDown={handleSplitResize} />
+            <div class="split-right" style={{ width: `${(1 - splitRatio()) * 100}%` }}>
               <ResponsePanel
                 response={activeTab()!.response}
                 loading={activeTab()!.loading}
