@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/nicedoc/tauri/v2/packages/tauri-schema/schema.json",
   "productName": "Tenso",
   "version": "0.2.0",
-  "identifier": "com.tenso.app",
+  "identifier": "com.tenso.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
