@@ -10,7 +10,7 @@ pub struct Claims {
 }
 
 pub fn hash_password(password: &str) -> Result<String, String> {
-    let salt = SaltString::generate(&mut rand::rngs::OsRng);
+    let salt = SaltString::generate(&mut argon2::password_hash::rand_core::OsRng);
     let argon2 = Argon2::default();
     argon2.hash_password(password.as_bytes(), &salt)
         .map(|h| h.to_string())

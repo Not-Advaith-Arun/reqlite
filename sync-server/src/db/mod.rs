@@ -1,13 +1,13 @@
 pub mod migrations;
 
 use r2d2::Pool;
-use r2d2_sqlite::SqliteManager;
+use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::params;
 
-pub type DbPool = Pool<SqliteManager>;
+pub type DbPool = Pool<SqliteConnectionManager>;
 
 pub fn init_pool(path: &str) -> Result<DbPool, Box<dyn std::error::Error>> {
-    let manager = SqliteManager::file(path);
+    let manager = SqliteConnectionManager::file(path);
     let pool = Pool::builder().max_size(8).build(manager)?;
 
     let conn = pool.get()?;
@@ -26,7 +26,7 @@ pub fn get_operations_since(pool: &DbPool, workspace_id: &str, since_revision: u
     let mut stmt = conn.prepare(
         "SELECT id, workspace_id, entity_type, entity_id, op_type, fields, revision, user_id, timestamp FROM operations WHERE workspace_id = ?1 AND revision > ?2 ORDER BY revision"
     )?;
-    let rows = stmt.query_map(params![workspace_id, since_revision], |row| {
+    let rows = stmt.query_map(params![workspace_id, since_revision], |row: &rusqlite::Row| {
         let entity_type_str: String = row.get(2)?;
         let op_type_str: String = row.get(4)?;
         let fields_str: String = row.get(5)?;
@@ -54,7 +54,7 @@ pub fn insert_operation(pool: &DbPool, op: &reqlite_shared::protocol::Operation)
         "INSERT INTO operations (id, workspace_id, entity_type, entity_id, op_type, fields, user_id, timestamp) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![op.id, op.workspace_id, entity_type.trim_matches('"'), op.entity_id, op_type.trim_matches('"'), fields, op.user_id, op.timestamp],
     )?;
-    let revision: u64 = conn.query_row("SELECT last_insert_rowid()", [], |row| row.get(0))?;
+    let revision: u64 = conn.query_row("SELECT last_insert_rowid()", [], |row: &rusqlite::Row| row.get(0))?;
     Ok(revision)
 }
 
@@ -63,7 +63,7 @@ pub fn get_latest_revision(pool: &DbPool, workspace_id: &str) -> Result<u64, Box
     let revision: u64 = conn.query_row(
         "SELECT COALESCE(MAX(revision), 0) FROM operations WHERE workspace_id = ?1",
         [workspace_id],
-        |row| row.get(0),
+        |row: &rusqlite::Row| row.get(0),
     )?;
     Ok(revision)
 }
@@ -73,7 +73,7 @@ pub fn check_field_conflict(pool: &DbPool, workspace_id: &str, entity_id: &str, 
     let mut stmt = conn.prepare(
         "SELECT fields FROM operations WHERE workspace_id = ?1 AND entity_id = ?2 AND revision > ?3"
     )?;
-    let rows = stmt.query_map(params![workspace_id, entity_id, since_revision], |row| {
+    let rows = stmt.query_map(params![workspace_id, entity_id, since_revision], |row: &rusqlite::Row| {
         let fields_str: String = row.get(0)?;
         Ok(fields_str)
     })?;

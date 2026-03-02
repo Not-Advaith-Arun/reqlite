@@ -2,7 +2,6 @@ use axum::{extract::{State, WebSocketUpgrade, ws::{WebSocket, Message}}, respons
 use dashmap::DashMap;
 use futures_util::{SinkExt, StreamExt};
 use reqlite_shared::protocol::*;
-use std::sync::Arc;
 use tokio::sync::broadcast;
 use crate::AppState;
 
@@ -47,6 +46,21 @@ async fn handle_ws(socket: WebSocket, state: AppState) {
     let mut workspace_id = String::new();
     let mut authenticated = false;
 
+    // Use an mpsc channel so the broadcast forwarder can send to the ws sink
+    let (fwd_tx, mut fwd_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+
+    // Spawn a task that drains fwd_rx into the ws sender
+    let send_task = tokio::spawn(async move {
+        while let Some(msg) = fwd_rx.recv().await {
+            if sender.send(Message::Text(msg)).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    // We need a separate fwd_tx clone for inline sends from the receiver loop
+    let inline_tx = fwd_tx.clone();
+
     // Process messages
     while let Some(Ok(msg)) = receiver.next().await {
         let Message::Text(text) = msg else { continue };
@@ -55,7 +69,7 @@ async fn handle_ws(socket: WebSocket, state: AppState) {
             Ok(m) => m,
             Err(e) => {
                 let err = SyncMessage::Error { message: format!("Invalid message: {}", e) };
-                let _ = sender.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
+                let _ = inline_tx.send(serde_json::to_string(&err).unwrap());
                 continue;
             }
         };
@@ -67,11 +81,11 @@ async fn handle_ws(socket: WebSocket, state: AppState) {
                         user_id = claims.sub;
                         authenticated = true;
                         let resp = SyncMessage::AuthOk { user_id: user_id.clone() };
-                        let _ = sender.send(Message::Text(serde_json::to_string(&resp).unwrap().into())).await;
+                        let _ = inline_tx.send(serde_json::to_string(&resp).unwrap());
                     }
                     Err(e) => {
                         let resp = SyncMessage::AuthError { message: e };
-                        let _ = sender.send(Message::Text(serde_json::to_string(&resp).unwrap().into())).await;
+                        let _ = inline_tx.send(serde_json::to_string(&resp).unwrap());
                         break;
                     }
                 }
@@ -80,7 +94,7 @@ async fn handle_ws(socket: WebSocket, state: AppState) {
             SyncMessage::Subscribe { workspace_id: ws_id, last_revision } => {
                 if !authenticated {
                     let err = SyncMessage::Error { message: "Not authenticated".into() };
-                    let _ = sender.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
+                    let _ = inline_tx.send(serde_json::to_string(&err).unwrap());
                     continue;
                 }
 
@@ -91,12 +105,12 @@ async fn handle_ws(socket: WebSocket, state: AppState) {
                     Ok(ops) => {
                         if !ops.is_empty() {
                             let delta = SyncMessage::Delta { operations: ops };
-                            let _ = sender.send(Message::Text(serde_json::to_string(&delta).unwrap().into())).await;
+                            let _ = inline_tx.send(serde_json::to_string(&delta).unwrap());
                         }
                     }
                     Err(e) => {
                         let err = SyncMessage::Error { message: e.to_string() };
-                        let _ = sender.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
+                        let _ = inline_tx.send(serde_json::to_string(&err).unwrap());
                     }
                 }
 
@@ -104,8 +118,8 @@ async fn handle_ws(socket: WebSocket, state: AppState) {
                 let tx = state.sync_manager.get_or_create_channel(&ws_id);
                 let mut rx = tx.subscribe();
 
-                // Spawn task to forward broadcasts to this client
-                let mut sender_clone = sender.clone();
+                // Spawn task to forward broadcasts to this client via the mpsc channel
+                let broadcast_fwd = fwd_tx.clone();
                 let uid = user_id.clone();
                 tokio::spawn(async move {
                     while let Ok(msg) = rx.recv().await {
@@ -117,7 +131,7 @@ async fn handle_ws(socket: WebSocket, state: AppState) {
                                 }
                             }
                         }
-                        if sender_clone.send(Message::Text(msg.into())).await.is_err() {
+                        if broadcast_fwd.send(msg).is_err() {
                             break;
                         }
                     }
@@ -127,7 +141,7 @@ async fn handle_ws(socket: WebSocket, state: AppState) {
             SyncMessage::Op(mut op) => {
                 if !authenticated || workspace_id.is_empty() {
                     let err = SyncMessage::Error { message: "Not subscribed to workspace".into() };
-                    let _ = sender.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
+                    let _ = inline_tx.send(serde_json::to_string(&err).unwrap());
                     continue;
                 }
 
@@ -146,7 +160,7 @@ async fn handle_ws(socket: WebSocket, state: AppState) {
                         conflicting_fields: conflicts,
                         latest: op.fields.clone(),
                     };
-                    let _ = sender.send(Message::Text(serde_json::to_string(&conflict).unwrap().into())).await;
+                    let _ = inline_tx.send(serde_json::to_string(&conflict).unwrap());
                     continue;
                 }
 
@@ -155,7 +169,7 @@ async fn handle_ws(socket: WebSocket, state: AppState) {
                     Ok(revision) => {
                         // Send ack to sender
                         let ack = SyncMessage::Ack { client_op_id: op.id.clone(), revision };
-                        let _ = sender.send(Message::Text(serde_json::to_string(&ack).unwrap().into())).await;
+                        let _ = inline_tx.send(serde_json::to_string(&ack).unwrap());
 
                         // Broadcast to other clients
                         op.revision = revision;
@@ -164,15 +178,20 @@ async fn handle_ws(socket: WebSocket, state: AppState) {
                     }
                     Err(e) => {
                         let err = SyncMessage::Error { message: format!("Failed to store operation: {}", e) };
-                        let _ = sender.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
+                        let _ = inline_tx.send(serde_json::to_string(&err).unwrap());
                     }
                 }
             }
 
             _ => {
                 let err = SyncMessage::Error { message: "Unexpected message type".into() };
-                let _ = sender.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
+                let _ = inline_tx.send(serde_json::to_string(&err).unwrap());
             }
         }
     }
+
+    // Drop the inline sender so the send_task can finish
+    drop(inline_tx);
+    drop(fwd_tx);
+    let _ = send_task.await;
 }

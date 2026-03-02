@@ -13,7 +13,7 @@ pub async fn import_openapi_spec(
     let root_collection = state.db.create_collection(workspace_id, None, &title)
         .map_err(|e| e.to_string())?;
 
-    let mut collections = vec![root_collection.clone()];
+    let collections = vec![root_collection.clone()];
 
     for (path, path_item) in &spec.paths.paths {
         if let openapiv3::ReferenceOr::Item(item) = path_item {

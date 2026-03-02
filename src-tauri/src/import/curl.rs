@@ -1,13 +1,4 @@
 use reqlite_shared::models::*;
-use nom::{
-    IResult,
-    bytes::complete::{tag, take_while1, take_until},
-    character::complete::{space0, space1, char},
-    branch::alt,
-    combinator::{opt, map},
-    multi::many0,
-    sequence::{preceded, delimited, pair},
-};
 
 pub fn parse_curl(input: &str) -> Result<SavedRequest, String> {
     let input = input.trim();

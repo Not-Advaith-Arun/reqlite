@@ -37,7 +37,7 @@ pub async fn register(
     let user_id = ulid::Ulid::new().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
-    let conn = state.db_pool.get().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let conn = state.db_pool.get().map_err(|e: r2d2::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     conn.execute(
         "INSERT INTO users (id, username, password_hash, created_at) VALUES (?1, ?2, ?3, ?4)",
         rusqlite::params![user_id, req.username, password_hash, now],
@@ -59,12 +59,12 @@ pub async fn login(
     State(state): State<AppState>,
     Json(req): Json<LoginRequest>,
 ) -> Result<Json<AuthResponse>, (StatusCode, String)> {
-    let conn = state.db_pool.get().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let conn = state.db_pool.get().map_err(|e: r2d2::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let (user_id, password_hash): (String, String) = conn.query_row(
         "SELECT id, password_hash FROM users WHERE username = ?1",
         [&req.username],
-        |row| Ok((row.get(0)?, row.get(1)?)),
+        |row: &rusqlite::Row| Ok((row.get(0)?, row.get(1)?)),
     ).map_err(|_| (StatusCode::UNAUTHORIZED, "Invalid credentials".into()))?;
 
     let valid = crate::auth::verify_password(&req.password, &password_hash)
@@ -90,10 +90,10 @@ pub struct WorkspaceResponse {
 pub async fn list_workspaces(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<WorkspaceResponse>>, (StatusCode, String)> {
-    let conn = state.db_pool.get().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let conn = state.db_pool.get().map_err(|e: r2d2::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let mut stmt = conn.prepare("SELECT id, name, owner_id FROM workspaces")
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let workspaces = stmt.query_map([], |row| {
+    let workspaces = stmt.query_map([], |row: &rusqlite::Row| {
         Ok(WorkspaceResponse {
             id: row.get(0)?,
             name: row.get(1)?,
@@ -118,7 +118,7 @@ pub async fn create_workspace(
     let id = ulid::Ulid::new().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
-    let conn = state.db_pool.get().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let conn = state.db_pool.get().map_err(|e: r2d2::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     conn.execute(
         "INSERT INTO workspaces (id, name, owner_id, created_at) VALUES (?1, ?2, ?3, ?4)",
         rusqlite::params![id, req.name, req.owner_id, now],
@@ -131,12 +131,12 @@ pub async fn get_snapshot(
     State(state): State<AppState>,
     Path(workspace_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let conn = state.db_pool.get().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let conn = state.db_pool.get().map_err(|e: r2d2::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let mut stmt = conn.prepare("SELECT entity_type, entity_id, data FROM snapshots WHERE workspace_id = ?1")
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let mut snapshot = serde_json::Map::new();
-    let rows = stmt.query_map([&workspace_id], |row| {
+    let rows = stmt.query_map([&workspace_id], |row: &rusqlite::Row| {
         let entity_type: String = row.get(0)?;
         let entity_id: String = row.get(1)?;
         let data: String = row.get(2)?;

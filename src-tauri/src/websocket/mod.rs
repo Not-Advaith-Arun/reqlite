@@ -19,7 +19,7 @@ pub async fn connect(
     state.ws_connections.insert(id.to_string(), ws_conn);
 
     let handle = app_handle.clone();
-    let conn_id = id.to_string();
+    let _conn_id = id.to_string();
 
     // Send messages from channel to WebSocket
     tokio::spawn(async move {

@@ -1,4 +1,4 @@
-use boa_engine::{Context, Source, JsValue, JsResult};
+use boa_engine::{Context, Source};
 use serde_json::Value;
 
 pub fn execute_script(script: &str, context_data: &Value) -> Result<Value, String> {
@@ -33,7 +33,7 @@ pub fn execute_script(script: &str, context_data: &Value) -> Result<Value, Strin
     ctx.eval(Source::from_bytes(&pm_script))
         .map_err(|e| format!("Script init error: {}", e))?;
 
-    let result = ctx.eval(Source::from_bytes(script))
+    let _result = ctx.eval(Source::from_bytes(script))
         .map_err(|e| format!("Script error: {}", e))?;
 
     // Extract pm.variables._data back
