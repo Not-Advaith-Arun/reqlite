@@ -3263,7 +3263,6 @@ kbd {
 
 .url-lock-icon.locked {
   color: #9ece6a;
-  filter: drop-shadow(0 0 4px rgba(158, 206, 106, 0.4));
 }
 
 .url-lock-icon.unlocked {
