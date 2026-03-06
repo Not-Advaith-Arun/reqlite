@@ -276,6 +276,7 @@ body {
   border-radius: var(--radius-sm);
   margin: 1px 4px;
   border: 1px solid transparent;
+  position: relative;
 }
 
 .tree-item:hover {
@@ -316,14 +317,17 @@ body {
 }
 
 .item-actions {
-  display: flex;
+  display: none;
   gap: 2px;
   align-items: center;
-  visibility: hidden;
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .tree-item:hover .item-actions {
-  visibility: visible;
+  display: flex;
 }
 
 /* Request context menu (three-dots) */
