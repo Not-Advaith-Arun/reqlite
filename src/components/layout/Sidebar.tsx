@@ -16,8 +16,8 @@ const METHOD_COLORS: Record<string, string> = {
 };
 
 const FolderIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ "flex-shrink": "0" }}>
-    <path d="M10 4H4C2.9 4 2 4.9 2 6V18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V8C22 6.9 21.1 6 20 6H12L10 4Z" />
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style={{ "flex-shrink": "0" }}>
+    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
   </svg>
 );
 
@@ -211,7 +211,6 @@ const FolderNode: Component<{ node: CollectionNode; depth: number }> = (props) =
         <span class="expand-icon" style={{ transform: expanded() ? "rotate(0deg)" : "rotate(-90deg)" }}>
           <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><path d="M1 2L4 5L7 2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </span>
-        <span class="folder-icon"><FolderIcon /></span>
         <span class="item-name">{props.node.collection.name}</span>
         <div class="item-actions">
           <button class="icon-btn" title="Add request" onClick={(e) => { e.stopPropagation(); setAdding("request"); expandFolder(id()); }}>
