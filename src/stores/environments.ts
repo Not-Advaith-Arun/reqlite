@@ -1,5 +1,6 @@
 import { createSignal } from "solid-js";
 import * as api from "../lib/api";
+import { triggerPush } from "../lib/sync";
 
 const [environments, setEnvironments] = createSignal<api.Environment[]>([]);
 const [activeEnvId, setActiveEnvId] = createSignal<string | null>(null);
@@ -22,17 +23,20 @@ export async function loadEnvironments(teamId: string) {
 export async function addEnvironment(teamId: string, name: string) {
   await api.createEnvironment(teamId, name);
   await loadEnvironments(teamId);
+  triggerPush();
 }
 
 export async function saveEnvironment(env: api.Environment) {
   await api.updateEnvironment(env);
   const teamId = env.team_id;
   await loadEnvironments(teamId);
+  triggerPush();
 }
 
 export async function removeEnvironment(id: string, teamId: string) {
   await api.deleteEnvironment(id);
   await loadEnvironments(teamId);
+  triggerPush();
 }
 
 export async function switchEnvironment(envId: string | null) {

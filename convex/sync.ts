@@ -197,43 +197,6 @@ export const pull = query({
   },
 });
 
-export const pullInitial = query({
-  args: {
-    teamId: v.id("teams"),
-  },
-  handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-    await assertTeamMember(ctx, args.teamId, userId);
-
-    const collections = await ctx.db
-      .query("collections")
-      .withIndex("by_team", (q) => q.eq("teamId", args.teamId))
-      .filter((q) => q.eq(q.field("deleted"), false))
-      .collect();
-
-    const requests = await ctx.db
-      .query("requests")
-      .withIndex("by_team", (q) => q.eq("teamId", args.teamId))
-      .filter((q) => q.eq(q.field("deleted"), false))
-      .collect();
-
-    const environments = await ctx.db
-      .query("environments")
-      .withIndex("by_team", (q) => q.eq("teamId", args.teamId))
-      .filter((q) => q.eq(q.field("deleted"), false))
-      .collect();
-
-    const history = await ctx.db
-      .query("history")
-      .withIndex("by_team", (q) => q.eq("teamId", args.teamId))
-      .order("desc")
-      .take(500);
-
-    return { collections, requests, environments, history };
-  },
-});
-
 export const pruneHistory = internalMutation({
   args: {},
   handler: async (ctx) => {

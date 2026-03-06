@@ -3,6 +3,8 @@ import { getConvexClient } from "./convex";
 import { api } from "../../convex/_generated/api";
 import { invoke } from "@tauri-apps/api/core";
 import type { Id } from "../../convex/_generated/dataModel";
+import { activeTeamId, isAuthenticated } from "./auth";
+import { activeTeam } from "../stores/collections";
 
 export type SyncState = "offline" | "syncing" | "synced" | "error";
 
@@ -333,4 +335,13 @@ export function stopSync() {
   }
   recentlyPushedClientIds.clear();
   setSyncState("offline");
+}
+
+export function triggerPush() {
+  if (!isAuthenticated()) return;
+  const convexId = activeTeamId();
+  const localId = activeTeam();
+  if (convexId && localId) {
+    schedulePush(convexId, localId);
+  }
 }

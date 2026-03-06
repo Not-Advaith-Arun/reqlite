@@ -11,6 +11,7 @@
 import type * as auth from "../auth.js";
 import type * as crons from "../crons.js";
 import type * as http from "../http.js";
+import type * as lib from "../lib.js";
 import type * as sync from "../sync.js";
 import type * as teams from "../teams.js";
 import type * as users from "../users.js";
@@ -25,6 +26,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   crons: typeof crons;
   http: typeof http;
+  lib: typeof lib;
   sync: typeof sync;
   teams: typeof teams;
   users: typeof users;

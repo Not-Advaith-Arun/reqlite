@@ -4,6 +4,7 @@ import { api } from "../../convex/_generated/api";
 import { startSync, stopSync } from "./sync";
 import { startInviteWatch, stopInviteWatch } from "./invites";
 import { activeTeam } from "../stores/collections";
+import { migrateLocalData } from "./migration";
 
 export interface AuthUser {
   _id: string;
@@ -54,6 +55,7 @@ export async function initAuth() {
       const localTeamId = activeTeam();
       const convexTeamId = activeTeamId();
       if (localTeamId && convexTeamId) {
+        await migrateLocalData(convexTeamId, localTeamId);
         startSync(convexTeamId, localTeamId);
       }
     } else {
@@ -139,6 +141,7 @@ export async function submitAuthCode(code: string) {
         const localTeamId = activeTeam();
         const convexTeamId = activeTeamId();
         if (localTeamId && convexTeamId) {
+          await migrateLocalData(convexTeamId, localTeamId);
           startSync(convexTeamId, localTeamId);
         }
         return;
@@ -175,12 +178,13 @@ export async function signOut() {
   setActiveTeamId(null);
 }
 
-export function switchTeam(teamId: string) {
+export async function switchTeam(teamId: string) {
   stopSync();
   setActiveTeamId(teamId);
   localStorage.setItem("active_team_id", teamId);
   const localTeamId = activeTeam();
   if (localTeamId) {
+    await migrateLocalData(teamId, localTeamId);
     startSync(teamId, localTeamId);
   }
 }

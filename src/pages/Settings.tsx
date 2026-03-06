@@ -256,7 +256,7 @@ export const Settings: Component = () => {
   const visibleCommunity = () => filteredCommunity();
 
   // Fetch teams for the current user
-  const [teams] = createResource(
+  const [teams, { refetch: refetchTeams }] = createResource(
     () => isAuthenticated(),
     async (authed) => {
       if (!authed) return [];
@@ -320,6 +320,7 @@ export const Settings: Component = () => {
       const team = await getConvexClient().mutation(api.teams.create, { name });
       if (team) {
         switchTeam((team as any)._id);
+        refetchTeams();
       }
       setNewTeamName("");
       setShowCreateTeam(false);

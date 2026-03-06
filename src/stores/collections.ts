@@ -1,6 +1,7 @@
 import { createSignal } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import * as api from "../lib/api";
+import { triggerPush } from "../lib/sync";
 
 export interface CollectionNode {
   collection: api.Collection;
@@ -75,6 +76,7 @@ export async function addCollection(name: string, parentId: string | null = null
   if (!teamId) return;
   await api.createCollection(teamId, parentId, name);
   await loadCollections(teamId);
+  triggerPush();
 }
 
 export async function removeCollection(id: string) {
@@ -84,12 +86,14 @@ export async function removeCollection(id: string) {
   // Rust backend handles recursive deletion of children + tombstone creation
   await api.deleteCollection(id);
   await loadCollections(teamId);
+  triggerPush();
 }
 
 export async function addRequest(collectionId: string, name: string, method: string = "GET") {
   await api.createRequest(collectionId, name, method, "");
   const teamId = activeTeam();
   if (teamId) await loadCollections(teamId);
+  triggerPush();
 }
 
 export async function removeRequest(id: string) {
@@ -100,4 +104,5 @@ export async function removeRequest(id: string) {
   }
   const teamId = activeTeam();
   if (teamId) await loadCollections(teamId);
+  triggerPush();
 }

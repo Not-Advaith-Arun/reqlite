@@ -230,7 +230,7 @@ export const pendingInvites = query({
 
     const invites = await ctx.db
       .query("teamInvites")
-      .withIndex("by_email", (q) => q.eq("email", user.email!))
+      .withIndex("by_email", (q) => q.eq("email", user.email!.toLowerCase()))
       .filter((q) => q.eq(q.field("status"), "pending"))
       .collect();
 

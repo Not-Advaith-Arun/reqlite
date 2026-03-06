@@ -3,6 +3,7 @@ import { collections, addCollection, removeCollection, addRequest, removeRequest
 import { openRequestInTab } from "../../stores/request";
 import * as api from "../../lib/api";
 import { submitAuthCode, cancelCodeEntry, authLoading, showCodeEntry, authError } from "../../lib/auth";
+import { triggerPush } from "../../lib/sync";
 
 // Module-level expanded state that persists across re-renders from loadCollections
 const [expandedFolders, setExpandedFolders] = createSignal<Set<string>>(new Set<string>());
@@ -68,6 +69,7 @@ const RequestContextMenu: Component<{
         const { loadCollections } = await import("../../stores/collections");
         await loadCollections(wsId);
       }
+      triggerPush();
     }
     props.onClose();
   };
@@ -98,6 +100,7 @@ const RequestContextMenu: Component<{
         const { loadCollections } = await import("../../stores/collections");
         await loadCollections(wsId);
       }
+      triggerPush();
     }
     props.onClose();
   };

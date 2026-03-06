@@ -2,6 +2,7 @@ import { createSignal } from "solid-js";
 import * as api from "../lib/api";
 import { resolveGlobals } from "./globals";
 import { loadHistory } from "./history";
+import { triggerPush } from "../lib/sync";
 
 export interface Tab {
   id: string;
@@ -172,6 +173,7 @@ export async function executeRequest(tabId: string, workspaceId: string) {
     );
     updateTab(tabId, { response, loading: false });
     loadHistory(workspaceId).catch(() => {});
+    triggerPush();
   } catch (err) {
     updateTab(tabId, {
       loading: false,
@@ -221,4 +223,5 @@ export async function saveRequest(tabId: string) {
 
   await api.updateRequest(saved);
   setTabs(tabs().map(t => t.id === tabId ? { ...t, dirty: false } : t));
+  triggerPush();
 }

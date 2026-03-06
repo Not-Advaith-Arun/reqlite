@@ -1,6 +1,7 @@
 import { Component, Show, createSignal } from "solid-js";
 import { importPostman, type ImportedCollection, createCollection, createRequest, updateRequest, type SavedRequest } from "../../lib/api";
 import { loadCollections, activeTeam } from "../../stores/collections";
+import { triggerPush } from "../../lib/sync";
 
 interface Props {
   onClose: () => void;
@@ -69,6 +70,7 @@ export const PostmanImport: Component<Props> = (props) => {
 
       await persistImportedTree(collection, teamId, null);
       await loadCollections(teamId);
+      triggerPush();
 
       props.onClose();
     } catch (e) {
