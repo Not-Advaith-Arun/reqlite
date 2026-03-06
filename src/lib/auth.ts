@@ -40,7 +40,27 @@ export async function initAuth() {
     setAuthLoading(true);
     setConvexAuth(storedToken);
 
-    const user = await getConvexClient().query(api.users.getMe, {});
+    let user = await getConvexClient().query(api.users.getMe, {});
+
+    // JWT may be expired — try refreshing via refresh token
+    if (!user) {
+      const refreshToken = localStorage.getItem("convex_refresh_token");
+      if (refreshToken) {
+        try {
+          const result = await getConvexClient().action(api.auth.signIn, { refreshToken });
+          if (result && typeof result === "object" && "tokens" in result) {
+            const newTokens = (result as any).tokens;
+            localStorage.setItem("convex_auth_token", newTokens.token);
+            localStorage.setItem("convex_refresh_token", newTokens.refreshToken);
+            setConvexAuth(newTokens.token);
+            user = await getConvexClient().query(api.users.getMe, {});
+          }
+        } catch {
+          // Refresh failed — fall through to cleanup
+        }
+      }
+    }
+
     if (user) {
       setAuthUser(user as AuthUser);
       const storedTeam = localStorage.getItem("active_team_id");
@@ -60,10 +80,12 @@ export async function initAuth() {
       }
     } else {
       localStorage.removeItem("convex_auth_token");
+      localStorage.removeItem("convex_refresh_token");
       setConvexAuth(null);
     }
   } catch {
     localStorage.removeItem("convex_auth_token");
+    localStorage.removeItem("convex_refresh_token");
     setConvexAuth(null);
   } finally {
     setAuthLoading(false);
@@ -122,6 +144,9 @@ export async function submitAuthCode(code: string) {
       const token = tokens?.token;
       if (token) {
         localStorage.setItem("convex_auth_token", token);
+        if (tokens.refreshToken) {
+          localStorage.setItem("convex_refresh_token", tokens.refreshToken);
+        }
         setConvexAuth(token);
 
         const user = await client.query(api.users.getMe, {});
@@ -171,6 +196,7 @@ export async function signOut() {
     // Ignore errors on sign out
   }
   localStorage.removeItem("convex_auth_token");
+  localStorage.removeItem("convex_refresh_token");
   localStorage.removeItem("active_team_id");
   localStorage.removeItem("convex_oauth_verifier");
   setConvexAuth(null);
