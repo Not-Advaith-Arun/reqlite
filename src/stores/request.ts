@@ -37,6 +37,20 @@ export interface Tab {
   wsComposerFormat: "text" | "json";
   // WS templates (persisted with saved request)
   wsTemplates: api.WsMessageTemplate[];
+  // Stashed state per protocol for reversible switching
+  _protocolStash: Partial<Record<"http" | "ws", ProtocolStash>>;
+}
+
+interface ProtocolStash {
+  url: string;
+  method: string;
+  headers: api.KeyValue[];
+  params: api.KeyValue[];
+  body: api.RequestBody;
+  auth: api.AuthConfig;
+  preScript: string;
+  postScript: string;
+  wsTemplates: api.WsMessageTemplate[];
 }
 
 const [tabs, setTabs] = createSignal<Tab[]>([]);
@@ -111,6 +125,7 @@ export function createNewTab(): Tab {
     savedRequestId: null,
     dirty: false,
     ...defaultWsFields(),
+    _protocolStash: {},
   };
   setTabs([...tabs(), tab]);
   setActiveTabId(id);
@@ -151,6 +166,7 @@ export function openRequestInTab(req: api.SavedRequest) {
     dirty: false,
     ...defaultWsFields(),
     wsTemplates: req.ws_messages ? [...req.ws_messages] : [],
+    _protocolStash: {},
   };
   setTabs([...tabs(), tab]);
   setActiveTabId(id);
@@ -229,20 +245,56 @@ export function switchProtocolType(tabId: string, newType: "http" | "ws") {
     disconnectWebSocket(tabId);
   }
 
-  updateTab(tabId, {
-    protocolType: newType,
-    url: "",
-    method: "GET",
-    headers: [],
-    params: [],
-    body: { type: "none" },
-    auth: { type: "none" },
-    preScript: "",
-    postScript: "",
-    response: null,
-    loading: false,
-    ...defaultWsFields(),
-  });
+  // Stash current protocol's state
+  const stash: ProtocolStash = {
+    url: tab.url,
+    method: tab.method,
+    headers: tab.headers,
+    params: tab.params,
+    body: tab.body,
+    auth: tab.auth,
+    preScript: tab.preScript,
+    postScript: tab.postScript,
+    wsTemplates: tab.wsTemplates,
+  };
+  const newStash = { ...tab._protocolStash, [tab.protocolType]: stash };
+
+  // Restore stashed state for target protocol, or start fresh
+  const restored = newStash[newType];
+  if (restored) {
+    updateTab(tabId, {
+      protocolType: newType,
+      response: null,
+      loading: false,
+      ...defaultWsFields(),
+      url: restored.url,
+      method: restored.method,
+      headers: restored.headers,
+      params: restored.params,
+      body: restored.body,
+      auth: restored.auth,
+      preScript: restored.preScript,
+      postScript: restored.postScript,
+      wsTemplates: restored.wsTemplates,
+      _protocolStash: newStash,
+    });
+  } else {
+    updateTab(tabId, {
+      protocolType: newType,
+      url: "",
+      method: "GET",
+      headers: [],
+      params: [],
+      body: { type: "none" },
+      auth: { type: "none" },
+      preScript: "",
+      postScript: "",
+      response: null,
+      loading: false,
+      ...defaultWsFields(),
+      _protocolStash: newStash,
+    });
+  }
 }
 
 // --- Variable resolution ---
@@ -511,6 +563,6 @@ export async function saveRequest(tabId: string) {
   saved.created_at = original.created_at;
 
   await api.updateRequest(saved);
-  setTabs(tabs().map(t => t.id === tabId ? { ...t, dirty: false } : t));
+  setTabs(tabs().map(t => t.id === tabId ? { ...t, dirty: false, _protocolStash: {} } : t));
   triggerPush();
 }
