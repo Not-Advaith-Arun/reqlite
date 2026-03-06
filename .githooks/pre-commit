@@ -1,13 +1,15 @@
 #!/bin/sh
 
-# Sync lockfile when package.json changes
+# Sync both lockfiles when package.json changes
 if git diff --cached --name-only | grep -q '^package\.json$'; then
+  echo "package.json changed — syncing lockfiles..."
+
   if command -v bun >/dev/null 2>&1; then
-    echo "package.json changed — syncing bun.lock"
-    bun install --frozen-lockfile 2>/dev/null || bun install
+    bun install
     git add bun.lock
-  elif command -v npm >/dev/null 2>&1; then
-    echo "package.json changed — syncing package-lock.json"
+  fi
+
+  if command -v npm >/dev/null 2>&1; then
     npm install --package-lock-only
     git add package-lock.json
   fi

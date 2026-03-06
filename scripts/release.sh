@@ -21,9 +21,19 @@ jq --arg v "$VERSION" '.version = $v' src-tauri/tauri.conf.json > tmp.$$.json \
 sed -i.bak "s/^version = \".*\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
 rm -f src-tauri/Cargo.toml.bak
 
-bun install
-git add package.json bun.lock src-tauri/tauri.conf.json src-tauri/Cargo.toml
-git commit -m "release: v$VERSION"
+# Sync both lockfiles
+LOCKFILES=""
+if command -v bun &>/dev/null; then
+  bun install
+  LOCKFILES="$LOCKFILES bun.lock"
+fi
+if command -v npm &>/dev/null; then
+  npm install --package-lock-only
+  LOCKFILES="$LOCKFILES package-lock.json"
+fi
+
+git add package.json $LOCKFILES src-tauri/tauri.conf.json src-tauri/Cargo.toml
+git commit --no-verify -m "release: v$VERSION"
 git tag -a "v$VERSION" -m "v$VERSION"
 git push && git push origin "v$VERSION"
 
