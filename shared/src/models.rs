@@ -89,6 +89,14 @@ pub struct FormDataParam {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WsMessageTemplate {
+    pub id: String,
+    pub name: String,
+    pub content: String,
+    pub format: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SavedRequest {
     pub id: String,
     pub collection_id: String,
@@ -101,6 +109,7 @@ pub struct SavedRequest {
     pub auth: AuthConfig,
     pub pre_script: String,
     pub post_script: String,
+    pub ws_messages: Vec<WsMessageTemplate>,
     pub sort_order: f64,
     pub created_at: String,
     pub updated_at: String,

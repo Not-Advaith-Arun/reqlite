@@ -213,6 +213,7 @@ fn convert_request(name: &str, req: &PostmanRequest) -> Option<SavedRequest> {
         auth,
         pre_script: String::new(),
         post_script: String::new(),
+        ws_messages: vec![],
         sort_order: 0.0,
         created_at: now.clone(),
         updated_at: now,

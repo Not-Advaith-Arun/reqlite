@@ -24,6 +24,7 @@ const requestValidator = v.object({
   auth: v.string(),
   preScript: v.string(),
   postScript: v.string(),
+  wsMessages: v.optional(v.string()),
   sortOrder: v.number(),
   deleted: v.boolean(),
   updatedAt: v.number(),

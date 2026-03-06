@@ -127,7 +127,7 @@ impl Database {
     pub fn list_requests(&self, collection_id: &str) -> Result<Vec<SavedRequest>, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, collection_id, name, method, url, headers, params, body, auth, pre_script, post_script, sort_order, created_at, updated_at FROM requests WHERE collection_id = ?1 ORDER BY sort_order"
+            "SELECT id, collection_id, name, method, url, headers, params, body, auth, pre_script, post_script, sort_order, created_at, updated_at, ws_messages FROM requests WHERE collection_id = ?1 ORDER BY sort_order"
         )?;
         let rows = stmt.query_map([collection_id], |row| {
             let headers_json: String = row.get(5)?;
@@ -146,6 +146,7 @@ impl Database {
                 auth: serde_json::from_str(&auth_json).unwrap_or(AuthConfig::None),
                 pre_script: row.get(9)?,
                 post_script: row.get(10)?,
+                ws_messages: serde_json::from_str(&row.get::<_, String>(14)?).unwrap_or_default(),
                 sort_order: row.get(11)?,
                 created_at: row.get(12)?,
                 updated_at: row.get(13)?,
@@ -157,7 +158,7 @@ impl Database {
     pub fn get_request(&self, id: &str) -> Result<Option<SavedRequest>, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, collection_id, name, method, url, headers, params, body, auth, pre_script, post_script, sort_order, created_at, updated_at FROM requests WHERE id = ?1"
+            "SELECT id, collection_id, name, method, url, headers, params, body, auth, pre_script, post_script, sort_order, created_at, updated_at, ws_messages FROM requests WHERE id = ?1"
         )?;
         let mut rows = stmt.query_map([id], |row| {
             let headers_json: String = row.get(5)?;
@@ -176,6 +177,7 @@ impl Database {
                 auth: serde_json::from_str(&auth_json).unwrap_or(AuthConfig::None),
                 pre_script: row.get(9)?,
                 post_script: row.get(10)?,
+                ws_messages: serde_json::from_str(&row.get::<_, String>(14)?).unwrap_or_default(),
                 sort_order: row.get(11)?,
                 created_at: row.get(12)?,
                 updated_at: row.get(13)?,
@@ -197,14 +199,14 @@ impl Database {
         let body_json = serde_json::to_string(&RequestBody::None).unwrap();
         let auth_json = serde_json::to_string(&AuthConfig::None).unwrap();
         conn.execute(
-            "INSERT INTO requests (id, collection_id, name, method, url, headers, params, body, auth, pre_script, post_script, sort_order, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, '', '', ?10, ?11, ?12)",
+            "INSERT INTO requests (id, collection_id, name, method, url, headers, params, body, auth, pre_script, post_script, ws_messages, sort_order, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, '', '', '[]', ?10, ?11, ?12)",
             rusqlite::params![id, collection_id, name, method, url, empty_arr, empty_arr, body_json, auth_json, sort_order, now, now],
         )?;
         Ok(SavedRequest {
             id, collection_id: collection_id.to_string(), name: name.to_string(),
             method: method.to_string(), url: url.to_string(),
             headers: vec![], params: vec![], body: RequestBody::None, auth: AuthConfig::None,
-            pre_script: String::new(), post_script: String::new(), sort_order,
+            pre_script: String::new(), post_script: String::new(), ws_messages: vec![], sort_order,
             created_at: now.clone(), updated_at: now,
         })
     }
@@ -216,9 +218,10 @@ impl Database {
         let params_json = serde_json::to_string(&req.params).unwrap();
         let body_json = serde_json::to_string(&req.body).unwrap();
         let auth_json = serde_json::to_string(&req.auth).unwrap();
+        let ws_messages_json = serde_json::to_string(&req.ws_messages).unwrap_or_default();
         conn.execute(
-            "UPDATE requests SET name=?1, method=?2, url=?3, headers=?4, params=?5, body=?6, auth=?7, pre_script=?8, post_script=?9, updated_at=?10 WHERE id=?11",
-            rusqlite::params![req.name, req.method, req.url, headers_json, params_json, body_json, auth_json, req.pre_script, req.post_script, now, req.id],
+            "UPDATE requests SET name=?1, method=?2, url=?3, headers=?4, params=?5, body=?6, auth=?7, pre_script=?8, post_script=?9, ws_messages=?10, updated_at=?11 WHERE id=?12",
+            rusqlite::params![req.name, req.method, req.url, headers_json, params_json, body_json, auth_json, req.pre_script, req.post_script, ws_messages_json, now, req.id],
         )?;
         Ok(())
     }
@@ -346,7 +349,7 @@ impl Database {
         })?.collect::<Result<_, _>>()?;
 
         let mut stmt = conn.prepare(
-            "SELECT id, collection_id, name, method, url, headers, params, body, auth, pre_script, post_script, sort_order, created_at, updated_at FROM requests WHERE collection_id IN (SELECT id FROM collections WHERE team_id = ?1) AND updated_at > ?2"
+            "SELECT id, collection_id, name, method, url, headers, params, body, auth, pre_script, post_script, sort_order, created_at, updated_at, ws_messages FROM requests WHERE collection_id IN (SELECT id FROM collections WHERE team_id = ?1) AND updated_at > ?2"
         )?;
         let requests: Vec<SavedRequest> = stmt.query_map(rusqlite::params![team_id, since_str], |row| {
             let headers_json: String = row.get(5)?;
@@ -361,6 +364,7 @@ impl Database {
                 body: serde_json::from_str(&body_json).unwrap_or(RequestBody::None),
                 auth: serde_json::from_str(&auth_json).unwrap_or(AuthConfig::None),
                 pre_script: row.get(9)?, post_script: row.get(10)?,
+                ws_messages: serde_json::from_str(&row.get::<_, String>(14)?).unwrap_or_default(),
                 sort_order: row.get(11)?, created_at: row.get(12)?, updated_at: row.get(13)?,
             })
         })?.collect::<Result<_, _>>()?;
@@ -428,9 +432,10 @@ impl Database {
         let params_json = serde_json::to_string(&req.params).unwrap();
         let body_json = serde_json::to_string(&req.body).unwrap();
         let auth_json = serde_json::to_string(&req.auth).unwrap();
+        let ws_messages_json = serde_json::to_string(&req.ws_messages).unwrap_or_default();
         conn.execute(
-            "INSERT OR REPLACE INTO requests (id, collection_id, name, method, url, headers, params, body, auth, pre_script, post_script, sort_order, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
-            rusqlite::params![req.id, req.collection_id, req.name, req.method, req.url, headers_json, params_json, body_json, auth_json, req.pre_script, req.post_script, req.sort_order, req.created_at, req.updated_at],
+            "INSERT OR REPLACE INTO requests (id, collection_id, name, method, url, headers, params, body, auth, pre_script, post_script, ws_messages, sort_order, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+            rusqlite::params![req.id, req.collection_id, req.name, req.method, req.url, headers_json, params_json, body_json, auth_json, req.pre_script, req.post_script, ws_messages_json, req.sort_order, req.created_at, req.updated_at],
         )?;
         Ok(())
     }

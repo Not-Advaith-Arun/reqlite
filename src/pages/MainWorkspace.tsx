@@ -5,11 +5,12 @@ import { TabBar } from "../components/layout/TabBar";
 import { StatusBar } from "../components/layout/StatusBar";
 import { RequestPanel } from "../components/request/RequestPanel";
 import { ResponsePanel } from "../components/response/ResponsePanel";
+import { WsMessageStream } from "../components/response/WsMessageStream";
 import { EnvManager } from "../components/environments/EnvManager";
 import { CurlImport } from "../components/import/CurlImport";
 import { PostmanImport } from "../components/import/PostmanImport";
 import { Settings } from "./Settings";
-import { tabs, activeTabId, getActiveTab, updateTab, executeRequest, createNewTab, saveRequest } from "../stores/request";
+import { tabs, activeTabId, getActiveTab, updateTab, executeRequest, createNewTab, saveRequest, isWebSocketTab, connectWebSocket } from "../stores/request";
 import { activeTeam, activeWorkspace } from "../stores/collections";
 import { loadEnvironments } from "../stores/environments";
 import { loadHistory, filteredHistory, historySearch, setHistorySearch, clearAllHistory } from "../stores/history";
@@ -83,7 +84,13 @@ export const MainWorkspace: Component = () => {
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
         e.preventDefault();
         const tab = getActiveTab();
-        if (tab) executeRequest(tab.id, activeTeam());
+        if (tab) {
+          if (isWebSocketTab(tab)) {
+            if (tab.wsStatus === "disconnected") connectWebSocket(tab.id);
+          } else {
+            executeRequest(tab.id, activeTeam());
+          }
+        }
       }
       if ((e.ctrlKey || e.metaKey) && e.key === "s") {
         e.preventDefault();
@@ -362,10 +369,14 @@ export const MainWorkspace: Component = () => {
                 </div>
                 <div class="resize-handle vertical split-divider" onMouseDown={handleSplitResize} />
                 <div class="split-right" style={{ width: `${(1 - splitRatio()) * 100}%` }}>
-                  <ResponsePanel
-                    response={activeTab()!.response}
-                    loading={activeTab()!.loading}
-                  />
+                  <Show when={isWebSocketTab(activeTab()!)} fallback={
+                    <ResponsePanel
+                      response={activeTab()!.response}
+                      loading={activeTab()!.loading}
+                    />
+                  }>
+                    <WsMessageStream tab={activeTab()!} />
+                  </Show>
                 </div>
               </div>
             </Show>

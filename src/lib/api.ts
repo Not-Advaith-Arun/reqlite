@@ -46,6 +46,13 @@ export interface FormDataParam {
   enabled: boolean;
 }
 
+export interface WsMessageTemplate {
+  id: string;
+  name: string;
+  content: string;
+  format: "text" | "json";
+}
+
 export interface SavedRequest {
   id: string;
   collection_id: string;
@@ -58,6 +65,7 @@ export interface SavedRequest {
   auth: AuthConfig;
   pre_script: string;
   post_script: string;
+  ws_messages: WsMessageTemplate[];
   sort_order: number;
   created_at: string;
   updated_at: string;

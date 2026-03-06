@@ -109,6 +109,16 @@ pub fn run(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
             last_push_at INTEGER DEFAULT 0
         );
     ")?;
+
+    let has_ws_messages: bool = conn.query_row(
+        "SELECT COUNT(*) > 0 FROM pragma_table_info('requests') WHERE name='ws_messages'",
+        [],
+        |row| row.get(0),
+    )?;
+    if !has_ws_messages {
+        conn.execute("ALTER TABLE requests ADD COLUMN ws_messages TEXT NOT NULL DEFAULT '[]'", [])?;
+    }
+
     Ok(())
 }
 

@@ -1,5 +1,5 @@
 import { Component, For, Show, createSignal, createMemo, onMount, onCleanup, createEffect } from "solid-js";
-import { tabs, activeTabId, setActiveTabId, closeTab, createNewTab, closeAllTabs, closeOtherTabs, type Tab } from "../../stores/request";
+import { tabs, activeTabId, setActiveTabId, closeTab, createNewTab, closeAllTabs, closeOtherTabs, isWebSocketTab, type Tab } from "../../stores/request";
 import { globalVars, saveGlobalVars, loadGlobalVars } from "../../stores/globals";
 import { KeyValueGrid } from "../shared/KeyValueGrid";
 
@@ -171,9 +171,14 @@ export const TabBar: Component = () => {
                       onClick={() => setActiveTabId(tab.id)}
                       onMouseDown={(e) => { if (e.button === 1) { e.preventDefault(); closeTab(tab.id); } }}
                     >
-                      <span class={`tab-method ${tab.method.toLowerCase()}`}>
-                        {tab.method}
-                      </span>
+                      <Show when={isWebSocketTab(tab)} fallback={
+                        <span class={`tab-method ${tab.method.toLowerCase()}`}>
+                          {tab.method}
+                        </span>
+                      }>
+                        <span class="tab-method ws">WS</span>
+                        <span class={`tab-ws-dot ${tab.wsStatus}`} />
+                      </Show>
                       <span class="tab-name">{tab.name}</span>
                       <Show when={tab.dirty}>
                         <span class="tab-dirty">●</span>

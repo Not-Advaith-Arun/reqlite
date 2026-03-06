@@ -87,6 +87,7 @@ pub fn parse_curl(input: &str) -> Result<SavedRequest, String> {
         auth: AuthConfig::None,
         pre_script: String::new(),
         post_script: String::new(),
+        ws_messages: vec![],
         sort_order: 0.0,
         created_at: now.clone(),
         updated_at: now,
