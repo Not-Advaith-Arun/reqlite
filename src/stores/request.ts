@@ -4,6 +4,7 @@ import * as api from "../lib/api";
 import { resolveGlobals } from "./globals";
 import { loadHistory } from "./history";
 import { triggerPush } from "../lib/sync";
+import { getDefaultCollectionId, setLastUsedCollectionId, addCollection, triggerRefresh, expandFolder } from "./collections";
 
 export interface WsMessage {
   id: string;
@@ -133,6 +134,7 @@ export function createNewTab(): Tab {
 }
 
 export function openRequestInTab(req: api.SavedRequest) {
+  setLastUsedCollectionId(req.collection_id);
   const existing = tabs().find(t => t.savedRequestId === req.id);
   if (existing) {
     setActiveTabId(existing.id);
@@ -529,14 +531,49 @@ export function loadTemplateIntoComposer(tabId: string, templateId: string) {
 
 export async function saveRequest(tabId: string) {
   const tab = tabs().find(t => t.id === tabId);
-  if (!tab || !tab.savedRequestId) return;
+  if (!tab) return;
 
-  // Reconstruct the full URL with protocol for storage
+  // Unsaved tab — create in last used collection
+  if (!tab.savedRequestId) {
+    let collectionId = getDefaultCollectionId();
+    if (!collectionId) {
+      await addCollection("Default");
+      collectionId = getDefaultCollectionId();
+    }
+    if (!collectionId) return;
+
+    const fullUrl = getProtocolPrefix(tab) + tab.url;
+    const saved = await api.createRequest(collectionId, tab.name, tab.method, fullUrl);
+    await api.updateRequest({
+      ...saved,
+      headers: tab.headers,
+      params: tab.params,
+      body: tab.body,
+      auth: tab.auth,
+      pre_script: tab.preScript,
+      post_script: tab.postScript,
+      ws_messages: tab.wsTemplates,
+    });
+    setTabs(tabs().map(t => t.id === tabId ? { ...t, savedRequestId: saved.id, dirty: false, _protocolStash: {} } : t));
+    setLastUsedCollectionId(collectionId);
+    expandFolder(collectionId);
+    triggerRefresh();
+    triggerPush();
+    return;
+  }
+
+  // Existing saved request — update
   const fullUrl = getProtocolPrefix(tab) + tab.url;
 
-  const saved: api.SavedRequest = {
+  const original = await api.getRequest(tab.savedRequestId);
+  if (!original) {
+    console.error("Cannot save: request no longer exists", tab.savedRequestId);
+    return;
+  }
+
+  await api.updateRequest({
     id: tab.savedRequestId,
-    collection_id: "",
+    collection_id: original.collection_id,
     name: tab.name,
     method: tab.method,
     url: fullUrl,
@@ -547,22 +584,10 @@ export async function saveRequest(tabId: string) {
     pre_script: tab.preScript,
     post_script: tab.postScript,
     ws_messages: tab.wsTemplates,
-    sort_order: 0,
-    created_at: "",
+    sort_order: original.sort_order,
+    created_at: original.created_at,
     updated_at: "",
-  };
-
-  const original = await api.getRequest(tab.savedRequestId);
-  if (!original) {
-    console.error("Cannot save: request no longer exists", tab.savedRequestId);
-    return;
-  }
-
-  saved.collection_id = original.collection_id;
-  saved.sort_order = original.sort_order;
-  saved.created_at = original.created_at;
-
-  await api.updateRequest(saved);
+  });
   setTabs(tabs().map(t => t.id === tabId ? { ...t, dirty: false, _protocolStash: {} } : t));
   triggerPush();
 }

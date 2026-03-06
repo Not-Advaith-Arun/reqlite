@@ -20,6 +20,46 @@ const activeWorkspace = activeTeam;
 
 export { teams, activeTeam, activeWorkspace, collections, loading };
 
+// --- Last used collection tracking ---
+const LAST_COLLECTION_KEY = "last_used_collection_id";
+const [lastUsedCollectionId, setLastUsedCollectionIdRaw] = createSignal<string | null>(
+  localStorage.getItem(LAST_COLLECTION_KEY)
+);
+
+export function setLastUsedCollectionId(id: string) {
+  setLastUsedCollectionIdRaw(id);
+  localStorage.setItem(LAST_COLLECTION_KEY, id);
+}
+
+export function getDefaultCollectionId(): string | null {
+  const last = lastUsedCollectionId();
+  if (last) return last;
+  if (collections.length > 0) return collections[0].collection.id;
+  return null;
+}
+
+// --- Folder expand state ---
+const [expandedFolders, setExpandedFolders] = createSignal<Set<string>>(new Set<string>());
+export { expandedFolders, setExpandedFolders };
+
+export function expandFolder(id: string) {
+  setExpandedFolders(prev => {
+    if (prev.has(id)) return prev;
+    const next = new Set(prev);
+    next.add(id);
+    return next;
+  });
+}
+
+export function toggleFolder(id: string) {
+  setExpandedFolders(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+  });
+}
+
 const [refreshTrigger, setRefreshTrigger] = createSignal(0);
 export { refreshTrigger };
 export function triggerRefresh() {
@@ -90,6 +130,7 @@ export async function removeCollection(id: string) {
 }
 
 export async function addRequest(collectionId: string, name: string, method: string = "GET") {
+  setLastUsedCollectionId(collectionId);
   await api.createRequest(collectionId, name, method, "");
   const teamId = activeTeam();
   if (teamId) await loadCollections(teamId);

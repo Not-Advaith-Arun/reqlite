@@ -1,30 +1,9 @@
 import { Component, For, Show, createSignal, onMount, onCleanup } from "solid-js";
-import { collections, addCollection, removeCollection, addRequest, removeRequest, loading, activeWorkspace, CollectionNode } from "../../stores/collections";
+import { collections, addCollection, removeCollection, addRequest, removeRequest, loading, activeWorkspace, CollectionNode, expandedFolders, expandFolder, toggleFolder } from "../../stores/collections";
 import { openRequestInTab } from "../../stores/request";
 import * as api from "../../lib/api";
 import { submitAuthCode, cancelCodeEntry, authLoading, showCodeEntry, authError } from "../../lib/auth";
 import { triggerPush } from "../../lib/sync";
-
-// Module-level expanded state that persists across re-renders from loadCollections
-const [expandedFolders, setExpandedFolders] = createSignal<Set<string>>(new Set<string>());
-
-const toggleFolder = (id: string) => {
-  setExpandedFolders(prev => {
-    const next = new Set(prev);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    return next;
-  });
-};
-
-const expandFolder = (id: string) => {
-  setExpandedFolders(prev => {
-    if (prev.has(id)) return prev;
-    const next = new Set(prev);
-    next.add(id);
-    return next;
-  });
-};
 
 const METHOD_COLORS: Record<string, string> = {
   GET: "var(--method-get)",
