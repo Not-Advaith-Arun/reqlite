@@ -111,7 +111,8 @@ export const MainWorkspace: Component = () => {
     const startWidth = sidebarWidth();
 
     const onMove = (e: MouseEvent) => {
-      const newWidth = Math.max(200, Math.min(500, startWidth + e.clientX - startX));
+      const maxWidth = Math.min(500, window.innerWidth - 480);
+      const newWidth = Math.max(200, Math.min(maxWidth, startWidth + e.clientX - startX));
       setSidebarWidth(newWidth);
     };
 

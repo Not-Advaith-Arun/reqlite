@@ -44,7 +44,7 @@ pub fn run() {
             let mut win_builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
                 .title("Tenso")
                 .inner_size(1280.0, 800.0)
-                .min_inner_size(900.0, 600.0)
+                .min_inner_size(1024.0, 600.0)
                 .resizable(true);
 
             #[cfg(target_os = "macos")]
