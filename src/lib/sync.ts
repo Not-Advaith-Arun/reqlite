@@ -5,6 +5,9 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Id } from "../../convex/_generated/dataModel";
 import { activeTeamId, isAuthenticated } from "./auth";
 import { activeTeam } from "../stores/collections";
+import { tabs, updateTab } from "../stores/request";
+import * as localApi from "./api";
+import { showToast } from "../stores/toast";
 
 export type SyncState = "offline" | "syncing" | "synced" | "error";
 
@@ -16,6 +19,7 @@ let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let lastPushedAt = 0;
 let syncStopped = false;
 let isPushing = false;
+let hasReconciled = false;
 const recentlyPushedClientIds = new Set<string>();
 
 // Map singular entity types from Rust tombstones to plural Convex table names
@@ -49,7 +53,13 @@ export function startSync(convexTeamId: string, localTeamId: string) {
           if (syncStopped || !result) return;
           try {
             await applyRemoteChanges(result, localTeamId);
-            if (!syncStopped) setSyncState("synced");
+            if (!syncStopped) {
+              setSyncState("synced");
+              if (!hasReconciled) {
+                hasReconciled = true;
+                reconcileRestoredTabs();
+              }
+            }
           } catch (err) {
             console.error("Sync pull error:", err);
             if (!syncStopped) setSyncState("error");
@@ -325,8 +335,29 @@ async function pushChanges(convexTeamId: string, localTeamId: string) {
   }
 }
 
+async function reconcileRestoredTabs() {
+  const detached: string[] = [];
+  for (const tab of tabs()) {
+    if (tab.savedRequestId) {
+      try {
+        const exists = await localApi.getRequest(tab.savedRequestId);
+        if (!exists) {
+          updateTab(tab.id, { savedRequestId: null, dirty: true } as any);
+          detached.push(tab.name);
+        }
+      } catch {
+        // Request lookup failed — leave tab as-is
+      }
+    }
+  }
+  if (detached.length > 0) {
+    showToast(`${detached.length} tab(s) detached as drafts (original requests were deleted): ${detached.join(", ")}`);
+  }
+}
+
 export function stopSync() {
   syncStopped = true;
+  hasReconciled = false;
   if (unsubscribe) {
     unsubscribe();
     unsubscribe = null;

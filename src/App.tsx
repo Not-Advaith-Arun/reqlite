@@ -2,9 +2,12 @@ import { Component, Show, onMount } from "solid-js";
 import { MainWorkspace } from "./pages/MainWorkspace";
 import { UpdateCheck } from "./components/shared/UpdateCheck";
 import { AuthCodeModal } from "./components/shared/AuthCodeModal";
-import { loadTeams } from "./stores/collections";
+import { ToastContainer } from "./components/shared/Toast";
+import { loadTeams, activeTeam } from "./stores/collections";
 import { applyTheme, getStoredTheme } from "./lib/themes";
 import { initAuth, submitAuthCode, showCodeEntry } from "./lib/auth";
+import { restoreSession, reconcileRestoredTabs, saveSession } from "./lib/session";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { onOpenUrl, getCurrent } from "@tauri-apps/plugin-deep-link";
 
 function handleDeepLinkUrls(urls: string[]) {
@@ -26,7 +29,19 @@ const App: Component = () => {
   onMount(async () => {
     applyTheme(getStoredTheme());
     await loadTeams();
+    restoreSession(activeTeam());
+    reconcileRestoredTabs().catch(console.warn);
     await initAuth();
+
+    // Flush session on app close
+    const appWindow = getCurrentWindow();
+    await appWindow.onCloseRequested(async (_event) => {
+      try {
+        saveSession();
+      } catch (err) {
+        console.warn("Failed to save session on close:", err);
+      }
+    });
 
     // Cold start: app was opened via deep link
     const initialUrls = await getCurrent();
@@ -45,6 +60,7 @@ const App: Component = () => {
       <Show when={showCodeEntry()}>
         <AuthCodeModal />
       </Show>
+      <ToastContainer />
     </>
   );
 };

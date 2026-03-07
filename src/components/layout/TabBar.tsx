@@ -1,6 +1,8 @@
 import { Component, For, Show, createSignal, createMemo, onMount, onCleanup, createEffect } from "solid-js";
-import { tabs, activeTabId, setActiveTabId, closeTab, createNewTab, closeAllTabs, closeOtherTabs, isWebSocketTab, type Tab } from "../../stores/request";
+import { tabs, activeTabId, switchActiveTab, closeTab, createNewTab, closeAllTabs, closeOtherTabs, isWebSocketTab, type Tab } from "../../stores/request";
 import { globalVars, saveGlobalVars, loadGlobalVars } from "../../stores/globals";
+import { isCloseWarningSuppressed, resetCloseWarning } from "../../lib/session";
+import { ConfirmCloseModal } from "../shared/ConfirmCloseModal";
 import { KeyValueGrid } from "../shared/KeyValueGrid";
 
 const METHOD_ORDER = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
@@ -16,6 +18,46 @@ export const TabBar: Component = () => {
   const [collapsedMethods, setCollapsedMethods] = createSignal<Set<string>>(new Set());
   const [showSearch, setShowSearch] = createSignal(false);
   const [tabSearch, setTabSearch] = createSignal("");
+  const [confirmCloseTabId, setConfirmCloseTabId] = createSignal<string | null>(null);
+  const [pendingCloseAction, setPendingCloseAction] = createSignal<(() => void) | null>(null);
+
+  function handleCloseTab(tabId: string) {
+    const tab = tabs().find(t => t.id === tabId);
+    if (tab?.dirty && !isCloseWarningSuppressed()) {
+      setConfirmCloseTabId(tabId);
+      setPendingCloseAction(() => () => closeTab(tabId));
+      return;
+    }
+    closeTab(tabId);
+  }
+
+  function handleCloseAllTabs() {
+    const dirtyTabs = tabs().filter(t => t.dirty);
+    if (dirtyTabs.length > 0 && !isCloseWarningSuppressed()) {
+      setConfirmCloseTabId("__all__");
+      setPendingCloseAction(() => () => closeAllTabs());
+      return;
+    }
+    closeAllTabs();
+  }
+
+  function handleCloseOtherTabs(keepTabId: string) {
+    const dirtyOthers = tabs().filter(t => t.id !== keepTabId && t.dirty);
+    if (dirtyOthers.length > 0 && !isCloseWarningSuppressed()) {
+      setConfirmCloseTabId("__others__");
+      setPendingCloseAction(() => () => closeOtherTabs(keepTabId));
+      return;
+    }
+    closeOtherTabs(keepTabId);
+  }
+
+  function confirmCloseTabName(): string {
+    const id = confirmCloseTabId();
+    if (id === "__all__") return "all tabs";
+    if (id === "__others__") return "other tabs";
+    const tab = tabs().find(t => t.id === id);
+    return tab?.name ?? "tab";
+  }
 
   const checkOverflow = () => {
     if (!tabListRef) return;
@@ -168,8 +210,8 @@ export const TabBar: Component = () => {
                   {(tab) => (
                     <div
                       class={`tab-item ${tab.id === activeTabId() ? "active" : ""}`}
-                      onClick={() => setActiveTabId(tab.id)}
-                      onMouseDown={(e) => { if (e.button === 1) { e.preventDefault(); closeTab(tab.id); } }}
+                      onClick={() => switchActiveTab(tab.id)}
+                      onMouseDown={(e) => { if (e.button === 1) { e.preventDefault(); handleCloseTab(tab.id); } }}
                     >
                       <Show when={isWebSocketTab(tab)} fallback={
                         <span class={`tab-method ${tab.method.toLowerCase()}`}>
@@ -185,7 +227,7 @@ export const TabBar: Component = () => {
                       </Show>
                       <button
                         class="tab-close"
-                        onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
+                        onClick={(e) => { e.stopPropagation(); handleCloseTab(tab.id); }}
                       >
                         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
                           <line x1="2" y1="2" x2="8" y2="8" /><line x1="8" y1="2" x2="2" y2="8" />
@@ -262,14 +304,14 @@ export const TabBar: Component = () => {
           <div class="dropdown tab-dropdown">
             <button
               class="dropdown-item"
-              onClick={() => { closeAllTabs(); setShowDropdown(false); }}
+              onClick={() => { handleCloseAllTabs(); setShowDropdown(false); }}
             >
               Close All Tabs
             </button>
             <Show when={activeTabId()}>
               <button
                 class="dropdown-item"
-                onClick={() => { closeOtherTabs(activeTabId()!); setShowDropdown(false); }}
+                onClick={() => { handleCloseOtherTabs(activeTabId()!); setShowDropdown(false); }}
               >
                 Close Other Tabs
               </button>
@@ -281,9 +323,32 @@ export const TabBar: Component = () => {
             >
               {groupByMethod() ? "✓ " : ""}Group by Method
             </button>
+            <Show when={isCloseWarningSuppressed()}>
+              <button
+                class="dropdown-item"
+                onClick={() => { resetCloseWarning(); setShowDropdown(false); }}
+              >
+                Re-enable Close Warnings
+              </button>
+            </Show>
           </div>
         </Show>
       </div>
+      <Show when={confirmCloseTabId()}>
+        <ConfirmCloseModal
+          tabName={confirmCloseTabName()}
+          onConfirm={() => {
+            const action = pendingCloseAction();
+            setConfirmCloseTabId(null);
+            setPendingCloseAction(null);
+            action?.();
+          }}
+          onCancel={() => {
+            setConfirmCloseTabId(null);
+            setPendingCloseAction(null);
+          }}
+        />
+      </Show>
     </div>
   );
 };

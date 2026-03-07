@@ -5,6 +5,7 @@ import { resolveGlobals } from "./globals";
 import { loadHistory } from "./history";
 import { triggerPush } from "../lib/sync";
 import { getDefaultCollectionId, setLastUsedCollectionId, addCollection, triggerRefresh, expandFolder } from "./collections";
+import { scheduleSave, scheduleImmediateSave } from "../lib/session";
 
 export interface WsMessage {
   id: string;
@@ -58,6 +59,11 @@ const [tabs, setTabs] = createSignal<Tab[]>([]);
 const [activeTabId, setActiveTabId] = createSignal<string | null>(null);
 
 export { tabs, setTabs, activeTabId, setActiveTabId };
+
+export function switchActiveTab(id: string) {
+  setActiveTabId(id);
+  scheduleImmediateSave();
+}
 
 // Track Tauri event unlisten functions per tab for WS cleanup
 const wsUnlisteners = new Map<string, UnlistenFn[]>();
@@ -130,6 +136,7 @@ export function createNewTab(): Tab {
   };
   setTabs([...tabs(), tab]);
   setActiveTabId(id);
+  scheduleImmediateSave();
   return tab;
 }
 
@@ -138,6 +145,7 @@ export function openRequestInTab(req: api.SavedRequest) {
   const existing = tabs().find(t => t.savedRequestId === req.id);
   if (existing) {
     setActiveTabId(existing.id);
+    scheduleImmediateSave();
     return;
   }
 
@@ -172,6 +180,7 @@ export function openRequestInTab(req: api.SavedRequest) {
   };
   setTabs([...tabs(), tab]);
   setActiveTabId(id);
+  scheduleImmediateSave();
 }
 
 export function closeTab(tabId: string) {
@@ -192,6 +201,7 @@ export function closeTab(tabId: string) {
       setActiveTabId(null);
     }
   }
+  scheduleImmediateSave();
 }
 
 export function closeAllTabs() {
@@ -203,6 +213,7 @@ export function closeAllTabs() {
   }
   setTabs([]);
   setActiveTabId(null);
+  scheduleImmediateSave();
 }
 
 export function closeOtherTabs(keepTabId: string) {
@@ -218,6 +229,7 @@ export function closeOtherTabs(keepTabId: string) {
   } else {
     setActiveTabId(null);
   }
+  scheduleImmediateSave();
 }
 
 // Fields that indicate user edits (not internal state changes like loading/response/wsStatus)
@@ -227,9 +239,18 @@ const DIRTY_FIELDS = new Set([
   "wsTemplates",
 ]);
 
+// Fields that are persisted to session — superset of DIRTY_FIELDS plus state fields
+const SESSION_FIELDS = new Set([
+  ...DIRTY_FIELDS,
+  "savedRequestId", "dirty", "_protocolStash",
+]);
+
 export function updateTab(tabId: string, updates: Partial<Tab>) {
   const shouldDirty = Object.keys(updates).some((k) => DIRTY_FIELDS.has(k));
   setTabs(tabs().map(t => t.id === tabId ? { ...t, ...updates, ...(shouldDirty ? { dirty: true } : {}) } : t));
+  if (Object.keys(updates).some((k) => SESSION_FIELDS.has(k))) {
+    scheduleSave();
+  }
 }
 
 export function getActiveTab(): Tab | undefined {
@@ -559,6 +580,7 @@ export async function saveRequest(tabId: string) {
     expandFolder(collectionId);
     triggerRefresh();
     triggerPush();
+    scheduleImmediateSave();
     return;
   }
 
@@ -590,4 +612,5 @@ export async function saveRequest(tabId: string) {
   });
   setTabs(tabs().map(t => t.id === tabId ? { ...t, dirty: false, _protocolStash: {} } : t));
   triggerPush();
+  scheduleImmediateSave();
 }

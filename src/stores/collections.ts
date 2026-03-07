@@ -2,6 +2,7 @@ import { createSignal } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import * as api from "../lib/api";
 import { triggerPush } from "../lib/sync";
+import { scheduleSave } from "../lib/session";
 
 export interface CollectionNode {
   collection: api.Collection;
@@ -49,6 +50,7 @@ export function expandFolder(id: string) {
     next.add(id);
     return next;
   });
+  scheduleSave();
 }
 
 export function toggleFolder(id: string) {
@@ -58,6 +60,7 @@ export function toggleFolder(id: string) {
     else next.add(id);
     return next;
   });
+  scheduleSave();
 }
 
 const [refreshTrigger, setRefreshTrigger] = createSignal(0);
