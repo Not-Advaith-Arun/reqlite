@@ -3,6 +3,7 @@ import { Portal } from "solid-js/web";
 import { collections, addCollection, removeCollection, addRequest, removeRequest, loading, activeWorkspace, CollectionNode, expandedFolders, expandFolder, toggleFolder } from "../../stores/collections";
 import { openRequestInTab } from "../../stores/request";
 import * as api from "../../lib/api";
+import { buildCurlCommand } from "../../lib/curl";
 import { triggerPush } from "../../lib/sync";
 import { kbd } from "../../lib/platform";
 
@@ -106,37 +107,7 @@ const RequestContextMenu: Component<{
 
   const handleCopyCurl = () => {
     const req = props.req;
-    let cmd = `curl -X ${req.method}`;
-    cmd += ` '${req.url}'`;
-    for (const h of req.headers) {
-      if (h.enabled && h.key) {
-        cmd += ` \\\n  -H '${h.key}: ${h.value}'`;
-      }
-    }
-    if (req.body.type === "json") {
-      cmd += ` \\\n  -H 'Content-Type: application/json'`;
-      cmd += ` \\\n  -d '${req.body.data.content}'`;
-    } else if (req.body.type === "raw") {
-      cmd += ` \\\n  -H 'Content-Type: ${req.body.data.content_type}'`;
-      cmd += ` \\\n  -d '${req.body.data.content}'`;
-    } else if (req.body.type === "form_urlencoded") {
-      const params = req.body.data.params.filter(p => p.enabled && p.key);
-      if (params.length) {
-        const encoded = params.map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`).join("&");
-        cmd += ` \\\n  -d '${encoded}'`;
-      }
-    }
-    if (req.auth.type === "bearer") {
-      cmd += ` \\\n  -H 'Authorization: Bearer ${(req.auth as any).config.token}'`;
-    } else if (req.auth.type === "basic") {
-      const cfg = (req.auth as any).config;
-      cmd += ` \\\n  -u '${cfg.username}:${cfg.password}'`;
-    } else if (req.auth.type === "api_key") {
-      const cfg = (req.auth as any).config;
-      if (cfg.add_to === "header") {
-        cmd += ` \\\n  -H '${cfg.key}: ${cfg.value}'`;
-      }
-    }
+    const cmd = buildCurlCommand(req.method, req.url, req.headers, req.body, req.auth);
     navigator.clipboard.writeText(cmd).catch(() => {});
     props.onClose();
   };

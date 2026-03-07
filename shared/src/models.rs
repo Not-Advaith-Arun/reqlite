@@ -138,6 +138,8 @@ pub struct HistoryEntry {
     pub request_data: String,  // JSON blob of full request
     pub response_headers: String, // JSON
     pub response_body_preview: String, // first 1KB
+    #[serde(default)]
+    pub response_body: String, // full response body (local-only, not synced)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

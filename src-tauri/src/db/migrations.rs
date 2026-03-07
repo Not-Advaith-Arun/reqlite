@@ -73,7 +73,8 @@ pub fn run(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
             timestamp TEXT NOT NULL,
             request_data TEXT NOT NULL DEFAULT '{}',
             response_headers TEXT NOT NULL DEFAULT '{}',
-            response_body_preview TEXT NOT NULL DEFAULT ''
+            response_body_preview TEXT NOT NULL DEFAULT '',
+            response_body TEXT NOT NULL DEFAULT ''
         );
 
         CREATE INDEX IF NOT EXISTS idx_history_team ON history(team_id);
@@ -117,6 +118,15 @@ pub fn run(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
     )?;
     if !has_ws_messages {
         conn.execute("ALTER TABLE requests ADD COLUMN ws_messages TEXT NOT NULL DEFAULT '[]'", [])?;
+    }
+
+    let has_response_body: bool = conn.query_row(
+        "SELECT COUNT(*) > 0 FROM pragma_table_info('history') WHERE name='response_body'",
+        [],
+        |row| row.get(0),
+    )?;
+    if !has_response_body {
+        conn.execute("ALTER TABLE history ADD COLUMN response_body TEXT NOT NULL DEFAULT ''", [])?;
     }
 
     Ok(())

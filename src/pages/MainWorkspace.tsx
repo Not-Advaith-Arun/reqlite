@@ -1,4 +1,5 @@
 import { Component, Show, For, createSignal, onMount, onCleanup } from "solid-js";
+import { Portal } from "solid-js/web";
 import { Sidebar } from "../components/layout/Sidebar";
 import { TitleBar } from "../components/layout/TitleBar";
 import { TabBar } from "../components/layout/TabBar";
@@ -10,11 +11,14 @@ import { EnvManager } from "../components/environments/EnvManager";
 import { CurlImport } from "../components/import/CurlImport";
 import { PostmanImport } from "../components/import/PostmanImport";
 import { Settings } from "./Settings";
-import { tabs, activeTabId, getActiveTab, updateTab, executeRequest, createNewTab, saveRequest, isWebSocketTab, connectWebSocket } from "../stores/request";
+import { tabs, activeTabId, getActiveTab, updateTab, executeRequest, createNewTab, saveRequest, isWebSocketTab, connectWebSocket, openHistoryInTab, openHistoryInTabWithResponse } from "../stores/request";
 import { kbd } from "../lib/platform";
 import { activeTeam, activeWorkspace } from "../stores/collections";
 import { loadEnvironments } from "../stores/environments";
-import { loadHistory, filteredHistory, historySearch, setHistorySearch, clearAllHistory } from "../stores/history";
+import { loadHistory, filteredHistory, historySearch, setHistorySearch, clearAllHistory, parseHistoryRequestData, saveHistoryAsRequest } from "../stores/history";
+import { buildCurlCommand } from "../lib/curl";
+import { CollectionPickerDialog } from "../components/shared/CollectionPickerDialog";
+import * as apiTypes from "../lib/api";
 import { isAuthenticated, authUser, setAuthUser, signInWithGitHub, signOut, authLoading, type AuthUser } from "../lib/auth";
 import { pendingInvites, pendingInviteCount, acceptInvite, declineInvite, blockInvite } from "../lib/invites";
 import { getConvexClient } from "../lib/convex";
@@ -40,6 +44,79 @@ const SideNavIcon = (props: { type: string; active: boolean }) => {
   );
 };
 
+// --- History context menu ---
+const [historyCtxMenu, setHistoryCtxMenu] = createSignal<{ entry: apiTypes.HistoryEntry; pos: { x: number; y: number } } | null>(null);
+const [showCollectionPicker, setShowCollectionPicker] = createSignal<apiTypes.HistoryEntry | null>(null);
+
+const HistoryContextMenu: Component<{
+  entry: apiTypes.HistoryEntry;
+  position: { x: number; y: number };
+  onClose: () => void;
+}> = (props) => {
+  let menuRef: HTMLDivElement | undefined;
+  const [adjustedPos, setAdjustedPos] = createSignal(props.position);
+
+  onMount(() => {
+    if (!menuRef) return;
+    const rect = menuRef.getBoundingClientRect();
+    let { x, y } = props.position;
+    if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 4;
+    if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 4;
+    if (x < 0) x = 4;
+    if (y < 0) y = 4;
+    setAdjustedPos({ x, y });
+  });
+
+  const menuStyle = () => ({
+    position: "fixed" as const,
+    left: `${adjustedPos().x}px`,
+    top: `${adjustedPos().y}px`,
+    "z-index": "9999",
+  });
+
+  const handleOpen = () => {
+    openHistoryInTabWithResponse(props.entry);
+    props.onClose();
+  };
+
+  const handleRerun = () => {
+    const tab = openHistoryInTab(props.entry);
+    props.onClose();
+    const wsId = activeWorkspace();
+    if (wsId) executeRequest(tab.id, wsId);
+  };
+
+  const handleCopyCurl = () => {
+    const { headers, params, body, auth } = parseHistoryRequestData(props.entry);
+    const cmd = buildCurlCommand(props.entry.method, props.entry.url, headers, body, auth);
+    navigator.clipboard.writeText(cmd).catch(() => {});
+    props.onClose();
+  };
+
+  const handleSaveAsRequest = () => {
+    setShowCollectionPicker(props.entry);
+    props.onClose();
+  };
+
+  return (
+    <div ref={menuRef} class="req-context-menu" style={menuStyle()} onClick={(e) => e.stopPropagation()}>
+      <button class="dropdown-item" onClick={handleOpen}>
+        <span class="ctx-label">Open in Tab</span>
+      </button>
+      <button class="dropdown-item" onClick={handleRerun}>
+        <span class="ctx-label">Re-run</span>
+      </button>
+      <div class="dropdown-sep" />
+      <button class="dropdown-item" onClick={handleCopyCurl}>
+        <span class="ctx-label">Copy as cURL</span>
+      </button>
+      <button class="dropdown-item" onClick={handleSaveAsRequest}>
+        <span class="ctx-label">Save as Request</span>
+      </button>
+    </div>
+  );
+};
+
 export const MainWorkspace: Component = () => {
   const [sidePanel, setSidePanel] = createSignal<SidePanel>("collections");
   const [sidebarWidth, setSidebarWidth] = createSignal(280);
@@ -56,6 +133,25 @@ export const MainWorkspace: Component = () => {
   };
   onMount(() => document.addEventListener("mousedown", handleClickOutside));
   onCleanup(() => document.removeEventListener("mousedown", handleClickOutside));
+
+  // History context menu dismiss handlers
+  const handleHistoryCtxMousedown = (e: MouseEvent) => {
+    if (!historyCtxMenu()) return;
+    if ((e.target as HTMLElement).closest(".req-context-menu")) return;
+    if (e.button === 2) return;
+    setHistoryCtxMenu(null);
+  };
+  const handleHistoryCtxKeydown = (e: KeyboardEvent) => {
+    if (e.key === "Escape") setHistoryCtxMenu(null);
+  };
+  onMount(() => {
+    document.addEventListener("mousedown", handleHistoryCtxMousedown);
+    document.addEventListener("keydown", handleHistoryCtxKeydown);
+  });
+  onCleanup(() => {
+    document.removeEventListener("mousedown", handleHistoryCtxMousedown);
+    document.removeEventListener("keydown", handleHistoryCtxKeydown);
+  });
 
   const handleAcceptInvite = async (token: string) => {
     try {
@@ -301,13 +397,10 @@ export const MainWorkspace: Component = () => {
                       return (
                         <div
                           class="tree-item request history-entry"
-                          onClick={() => {
-                            const tab = createNewTab();
-                            updateTab(tab.id, {
-                              method: entry.method,
-                              url: entry.url,
-                              name: entry.url,
-                            });
+                          onClick={() => openHistoryInTabWithResponse(entry)}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            setHistoryCtxMenu({ entry, pos: { x: e.clientX, y: e.clientY } });
                           }}
                         >
                           <span class={`method-badge ${entry.method.toLowerCase()}`}>
@@ -391,6 +484,30 @@ export const MainWorkspace: Component = () => {
 
       <Show when={showPostmanImport()}>
         <PostmanImport onClose={() => setShowPostmanImport(false)} />
+      </Show>
+
+      <Show when={historyCtxMenu()} keyed>
+        {(menu) => (
+          <Portal mount={document.body}>
+            <HistoryContextMenu
+              entry={menu.entry}
+              position={menu.pos}
+              onClose={() => setHistoryCtxMenu(null)}
+            />
+          </Portal>
+        )}
+      </Show>
+
+      <Show when={showCollectionPicker()} keyed>
+        {(entry) => (
+          <CollectionPickerDialog
+            onSelect={async (collectionId) => {
+              await saveHistoryAsRequest(entry, collectionId);
+              setShowCollectionPicker(null);
+            }}
+            onClose={() => setShowCollectionPicker(null)}
+          />
+        )}
       </Show>
     </div>
   );

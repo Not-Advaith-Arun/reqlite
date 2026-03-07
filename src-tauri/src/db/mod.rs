@@ -296,8 +296,8 @@ impl Database {
     pub fn add_history(&self, entry: &HistoryEntry) -> Result<(), rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
         conn.execute(
-            "INSERT INTO history (id, team_id, method, url, status, duration_ms, response_size, timestamp, request_data, response_headers, response_body_preview) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-            rusqlite::params![entry.id, entry.team_id, entry.method, entry.url, entry.status, entry.duration_ms, entry.response_size, entry.timestamp, entry.request_data, entry.response_headers, entry.response_body_preview],
+            "INSERT INTO history (id, team_id, method, url, status, duration_ms, response_size, timestamp, request_data, response_headers, response_body_preview, response_body) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+            rusqlite::params![entry.id, entry.team_id, entry.method, entry.url, entry.status, entry.duration_ms, entry.response_size, entry.timestamp, entry.request_data, entry.response_headers, entry.response_body_preview, entry.response_body],
         )?;
         Ok(())
     }
@@ -320,9 +320,34 @@ impl Database {
                 request_data: row.get(8)?,
                 response_headers: row.get(9)?,
                 response_body_preview: row.get(10)?,
+                response_body: String::new(), // not fetched in list queries
             })
         })?;
         rows.collect()
+    }
+
+    pub fn get_history_entry(&self, id: &str, team_id: &str) -> Result<Option<HistoryEntry>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, team_id, method, url, status, duration_ms, response_size, timestamp, request_data, response_headers, response_body_preview, response_body FROM history WHERE id = ?1 AND team_id = ?2"
+        )?;
+        let mut rows = stmt.query_map(rusqlite::params![id, team_id], |row| {
+            Ok(HistoryEntry {
+                id: row.get(0)?,
+                team_id: row.get(1)?,
+                method: row.get(2)?,
+                url: row.get(3)?,
+                status: row.get(4)?,
+                duration_ms: row.get(5)?,
+                response_size: row.get(6)?,
+                timestamp: row.get(7)?,
+                request_data: row.get(8)?,
+                response_headers: row.get(9)?,
+                response_body_preview: row.get(10)?,
+                response_body: row.get(11)?,
+            })
+        })?;
+        Ok(rows.next().transpose()?)
     }
 
     pub fn clear_history(&self, team_id: &str) -> Result<(), rusqlite::Error> {
@@ -390,6 +415,7 @@ impl Database {
                 url: row.get(3)?, status: row.get(4)?, duration_ms: row.get(5)?,
                 response_size: row.get(6)?, timestamp: row.get(7)?, request_data: row.get(8)?,
                 response_headers: row.get(9)?, response_body_preview: row.get(10)?,
+                response_body: String::new(), // not included in sync
             })
         })?.collect::<Result<_, _>>()?;
 
@@ -451,12 +477,17 @@ impl Database {
         Ok(())
     }
 
-    // Sync: upsert history entry
+    // Sync: upsert history entry (preserves local response_body since sync doesn't carry it)
     pub fn upsert_history(&self, entry: &HistoryEntry) -> Result<(), rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
+        let existing_body: String = conn.query_row(
+            "SELECT COALESCE(response_body, '') FROM history WHERE id = ?1",
+            [&entry.id],
+            |row| row.get(0),
+        ).unwrap_or_default();
         conn.execute(
-            "INSERT OR REPLACE INTO history (id, team_id, method, url, status, duration_ms, response_size, timestamp, request_data, response_headers, response_body_preview) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-            rusqlite::params![entry.id, entry.team_id, entry.method, entry.url, entry.status, entry.duration_ms, entry.response_size, entry.timestamp, entry.request_data, entry.response_headers, entry.response_body_preview],
+            "INSERT OR REPLACE INTO history (id, team_id, method, url, status, duration_ms, response_size, timestamp, request_data, response_headers, response_body_preview, response_body) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+            rusqlite::params![entry.id, entry.team_id, entry.method, entry.url, entry.status, entry.duration_ms, entry.response_size, entry.timestamp, entry.request_data, entry.response_headers, entry.response_body_preview, existing_body],
         )?;
         Ok(())
     }

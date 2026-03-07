@@ -86,6 +86,7 @@ pub fn run() {
             commands::environments::set_active_environment,
             commands::history::list_history,
             commands::history::clear_history,
+            commands::history::get_history_entry,
             commands::import::import_curl,
             commands::import::import_openapi,
             commands::import::import_postman,

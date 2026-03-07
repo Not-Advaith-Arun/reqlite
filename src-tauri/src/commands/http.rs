@@ -163,6 +163,7 @@ pub async fn send_request(
         }).to_string(),
         response_headers: serde_json::to_string(&resp_headers).unwrap_or_default(),
         response_body_preview: body_text.chars().take(1024).collect(),
+        response_body: if body_text.len() <= 10_000_000 { body_text.clone() } else { String::new() },
     };
     let _ = state.db.add_history(&history_entry);
 

@@ -92,6 +92,7 @@ export interface HistoryEntry {
   request_data: string;
   response_headers: string;
   response_body_preview: string;
+  response_body?: string; // only present when fetched via getHistoryEntry
 }
 
 export interface TimingBreakdown {
@@ -148,6 +149,7 @@ export const setActiveEnvironment = (envId: string | null) => invoke<void>("set_
 // History API
 export const listHistory = (teamId: string, limit?: number) => invoke<HistoryEntry[]>("list_history", { teamId, limit });
 export const clearHistory = (teamId: string) => invoke<void>("clear_history", { teamId });
+export const getHistoryEntry = (id: string, teamId: string) => invoke<HistoryEntry | null>("get_history_entry", { id, teamId });
 
 // Import API
 export const importCurl = (curlCommand: string) => invoke<SavedRequest>("import_curl", { curlCommand });

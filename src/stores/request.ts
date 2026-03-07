@@ -2,9 +2,9 @@ import { createSignal } from "solid-js";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import * as api from "../lib/api";
 import { resolveGlobals } from "./globals";
-import { loadHistory } from "./history";
+import { loadHistory, parseHistoryRequestData } from "./history";
 import { triggerPush } from "../lib/sync";
-import { getDefaultCollectionId, setLastUsedCollectionId, addCollection, triggerRefresh, expandFolder } from "./collections";
+import { getDefaultCollectionId, setLastUsedCollectionId, addCollection, triggerRefresh, expandFolder, activeWorkspace } from "./collections";
 import { scheduleSave, scheduleImmediateSave } from "../lib/session";
 
 export interface WsMessage {
@@ -181,6 +181,62 @@ export function openRequestInTab(req: api.SavedRequest) {
   setTabs([...tabs(), tab]);
   setActiveTabId(id);
   scheduleImmediateSave();
+}
+
+export function openHistoryInTab(entry: api.HistoryEntry): Tab {
+  const { headers, params, body, auth } = parseHistoryRequestData(entry);
+  const detected = detectProtocol(entry.url);
+  const protocolType = detected?.protocolType ?? "http";
+  const secure = detected?.secure ?? true;
+  const bareUrl = detected?.bareUrl ?? entry.url;
+
+  tabCounter++;
+  const id = `tab-${tabCounter}-${Date.now()}`;
+  const tab: Tab = {
+    id,
+    name: `${entry.method} ${bareUrl}`,
+    method: entry.method,
+    url: bareUrl,
+    protocolType,
+    secure,
+    headers: [...headers],
+    params: [...params],
+    body,
+    auth,
+    preScript: "",
+    postScript: "",
+    response: null,
+    loading: false,
+    savedRequestId: null,
+    dirty: false,
+    ...defaultWsFields(),
+    _protocolStash: {},
+  };
+  setTabs([...tabs(), tab]);
+  setActiveTabId(id);
+  scheduleImmediateSave();
+  return tab;
+}
+
+export async function openHistoryInTabWithResponse(entry: api.HistoryEntry) {
+  const tab = openHistoryInTab(entry);
+  try {
+    const full = await api.getHistoryEntry(entry.id, activeWorkspace());
+    if (full) {
+      let respHeaders: api.KeyValue[] = [];
+      try { respHeaders = JSON.parse(entry.response_headers); } catch { /* empty */ }
+      updateTab(tab.id, {
+        response: {
+          status: entry.status,
+          status_text: `${entry.status}`,
+          headers: respHeaders,
+          body: full.response_body ?? "",
+          size_bytes: entry.response_size,
+          timing: { dns_ms: 0, connect_ms: 0, tls_ms: 0, first_byte_ms: entry.duration_ms, total_ms: entry.duration_ms, download_ms: 0 },
+        },
+      });
+    }
+  } catch { /* failed to fetch full entry — tab still usable without response */ }
 }
 
 export function closeTab(tabId: string) {

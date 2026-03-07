@@ -11,3 +11,8 @@ pub async fn list_history(state: tauri::State<'_, Arc<AppState>>, team_id: Strin
 pub async fn clear_history(state: tauri::State<'_, Arc<AppState>>, team_id: String) -> Result<(), String> {
     state.db.clear_history(&team_id).map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub async fn get_history_entry(state: tauri::State<'_, Arc<AppState>>, id: String, team_id: String) -> Result<Option<HistoryEntry>, String> {
+    state.db.get_history_entry(&id, &team_id).map_err(|e| e.to_string())
+}
