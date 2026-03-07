@@ -104,41 +104,35 @@ const RequestContextMenu: Component<{
     props.onClose();
   };
 
-  const handleCopyCurl = async () => {
-    const original = await api.getRequest(props.req.id);
-    if (!original) { props.onClose(); return; }
-    let cmd = `curl -X ${original.method}`;
-    // Add URL
-    const url = original.url;
-    cmd += ` '${url}'`;
-    // Add headers
-    for (const h of original.headers) {
+  const handleCopyCurl = () => {
+    const req = props.req;
+    let cmd = `curl -X ${req.method}`;
+    cmd += ` '${req.url}'`;
+    for (const h of req.headers) {
       if (h.enabled && h.key) {
         cmd += ` \\\n  -H '${h.key}: ${h.value}'`;
       }
     }
-    // Add body
-    if (original.body.type === "json") {
+    if (req.body.type === "json") {
       cmd += ` \\\n  -H 'Content-Type: application/json'`;
-      cmd += ` \\\n  -d '${original.body.data.content}'`;
-    } else if (original.body.type === "raw") {
-      cmd += ` \\\n  -H 'Content-Type: ${original.body.data.content_type}'`;
-      cmd += ` \\\n  -d '${original.body.data.content}'`;
-    } else if (original.body.type === "form_urlencoded") {
-      const params = original.body.data.params.filter(p => p.enabled && p.key);
+      cmd += ` \\\n  -d '${req.body.data.content}'`;
+    } else if (req.body.type === "raw") {
+      cmd += ` \\\n  -H 'Content-Type: ${req.body.data.content_type}'`;
+      cmd += ` \\\n  -d '${req.body.data.content}'`;
+    } else if (req.body.type === "form_urlencoded") {
+      const params = req.body.data.params.filter(p => p.enabled && p.key);
       if (params.length) {
         const encoded = params.map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`).join("&");
         cmd += ` \\\n  -d '${encoded}'`;
       }
     }
-    // Add auth
-    if (original.auth.type === "bearer") {
-      cmd += ` \\\n  -H 'Authorization: Bearer ${(original.auth as any).config.token}'`;
-    } else if (original.auth.type === "basic") {
-      const cfg = (original.auth as any).config;
+    if (req.auth.type === "bearer") {
+      cmd += ` \\\n  -H 'Authorization: Bearer ${(req.auth as any).config.token}'`;
+    } else if (req.auth.type === "basic") {
+      const cfg = (req.auth as any).config;
       cmd += ` \\\n  -u '${cfg.username}:${cfg.password}'`;
-    } else if (original.auth.type === "api_key") {
-      const cfg = (original.auth as any).config;
+    } else if (req.auth.type === "api_key") {
+      const cfg = (req.auth as any).config;
       if (cfg.add_to === "header") {
         cmd += ` \\\n  -H '${cfg.key}: ${cfg.value}'`;
       }
