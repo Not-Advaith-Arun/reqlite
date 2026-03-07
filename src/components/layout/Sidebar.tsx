@@ -1,4 +1,5 @@
-import { Component, For, Show, createSignal, onMount, onCleanup } from "solid-js";
+import { Component, For, Show, createSignal, onMount } from "solid-js";
+import { Portal } from "solid-js/web";
 import { collections, addCollection, removeCollection, addRequest, removeRequest, loading, activeWorkspace, CollectionNode, expandedFolders, expandFolder, toggleFolder } from "../../stores/collections";
 import { openRequestInTab } from "../../stores/request";
 import * as api from "../../lib/api";
@@ -31,10 +32,24 @@ const ThreeDotsIcon = () => (
 
 const RequestContextMenu: Component<{
   req: api.SavedRequest;
+  position: { x: number; y: number };
   onClose: () => void;
 }> = (props) => {
+  let menuRef: HTMLDivElement | undefined;
+  const [adjustedPos, setAdjustedPos] = createSignal(props.position);
   const [renaming, setRenaming] = createSignal(false);
   const [renameName, setRenameName] = createSignal(props.req.name);
+
+  onMount(() => {
+    if (!menuRef) return;
+    const rect = menuRef.getBoundingClientRect();
+    let { x, y } = props.position;
+    if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 4;
+    if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 4;
+    if (x < 0) x = 4;
+    if (y < 0) y = 4;
+    setAdjustedPos({ x, y });
+  });
 
   const handleRename = async () => {
     const name = renameName().trim();
@@ -137,9 +152,16 @@ const RequestContextMenu: Component<{
     props.onClose();
   };
 
+  const menuStyle = () => ({
+    position: "fixed" as const,
+    left: `${adjustedPos().x}px`,
+    top: `${adjustedPos().y}px`,
+    "z-index": "9999",
+  });
+
   return (
     <Show when={!renaming()} fallback={
-      <div class="dropdown req-context-menu" onClick={(e) => e.stopPropagation()}>
+      <div ref={menuRef} class="req-context-menu" style={menuStyle()} onClick={(e) => e.stopPropagation()}>
         <div class="req-rename-row">
           <input
             class="req-rename-input"
@@ -154,7 +176,7 @@ const RequestContextMenu: Component<{
         </div>
       </div>
     }>
-      <div class="dropdown req-context-menu" onClick={(e) => e.stopPropagation()}>
+      <div ref={menuRef} class="req-context-menu" style={menuStyle()} onClick={(e) => e.stopPropagation()}>
         <button class="dropdown-item" onClick={() => setRenaming(true)}>
           <span class="ctx-label">Rename</span>
           <span class="ctx-shortcut">{kbd("Mod+E")}</span>
@@ -248,26 +270,32 @@ const FolderNode: Component<{ node: CollectionNode; depth: number }> = (props) =
   );
 };
 
+// Single global context menu state — only one menu open at a time
+const [activeCtxMenu, setActiveCtxMenu] = createSignal<{ req: api.SavedRequest; pos: { x: number; y: number } } | null>(null);
+
+// Close on any mousedown outside the menu (mousedown fires before contextmenu,
+// so we need to check if this is a right-click and skip closing — the contextmenu
+// handler on the tree item will replace the menu)
+document.addEventListener("mousedown", (e) => {
+  if (!activeCtxMenu()) return;
+  if ((e.target as HTMLElement).closest(".req-context-menu")) return;
+  // Right-click on a tree item will trigger onContextMenu which replaces the menu
+  if (e.button === 2) return;
+  setActiveCtxMenu(null);
+});
+
+// Close on Escape
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") setActiveCtxMenu(null);
+});
+
 const RequestItem: Component<{ req: api.SavedRequest; depth: number }> = (props) => {
-  const [showCtxMenu, setShowCtxMenu] = createSignal(false);
-
-  const closeOnOutsideClick = (e: MouseEvent) => {
-    if (!(e.target as HTMLElement).closest(".req-ctx-container")) {
-      setShowCtxMenu(false);
-    }
-  };
-
-  onMount(() => {
-    document.addEventListener("click", closeOnOutsideClick);
-    onCleanup(() => document.removeEventListener("click", closeOnOutsideClick));
-  });
-
   return (
     <div
       class="tree-item request"
       style={{ "padding-left": `${props.depth * 16 + 8}px` }}
       onClick={() => openRequestInTab(props.req)}
-      onContextMenu={(e) => { e.preventDefault(); setShowCtxMenu(true); }}
+      onContextMenu={(e) => { e.preventDefault(); setActiveCtxMenu({ req: props.req, pos: { x: e.clientX, y: e.clientY } }); }}
     >
       <span class={`method-badge ${props.req.method.toLowerCase()}`}>
         {props.req.method}
@@ -278,16 +306,19 @@ const RequestItem: Component<{ req: api.SavedRequest; depth: number }> = (props)
           <button
             class="icon-btn req-dots-btn"
             title="More options"
-            onClick={(e) => { e.stopPropagation(); setShowCtxMenu(!showCtxMenu()); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              const cur = activeCtxMenu();
+              if (cur && cur.req.id === props.req.id) {
+                setActiveCtxMenu(null);
+              } else {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setActiveCtxMenu({ req: props.req, pos: { x: rect.right, y: rect.bottom } });
+              }
+            }}
           >
             <ThreeDotsIcon />
           </button>
-          <Show when={showCtxMenu()}>
-            <RequestContextMenu
-              req={props.req}
-              onClose={() => setShowCtxMenu(false)}
-            />
-          </Show>
         </div>
       </div>
     </div>
@@ -336,6 +367,17 @@ export const Sidebar: Component = () => {
         </Show>
       </div>
 
+      <Show when={activeCtxMenu()} keyed>
+        {(menu) => (
+          <Portal mount={document.body}>
+            <RequestContextMenu
+              req={menu.req}
+              position={menu.pos}
+              onClose={() => setActiveCtxMenu(null)}
+            />
+          </Portal>
+        )}
+      </Show>
     </div>
   );
 };
