@@ -39,7 +39,10 @@ pub async fn send_request(
 
     let resolved_url = resolve(&url);
 
-    // Build URL with query params (strip any existing query string since params array is the source of truth)
+    // Build URL with query params.
+    // INVARIANT: `params` is the canonical source of query parameters. The URL may
+    // contain a query string (the frontend syncs params into the URL bidirectionally),
+    // so we strip it before rebuilding from `params` to avoid duplication.
     let mut url_with_params = reqwest::Url::parse(&resolved_url).map_err(|e| format!("Invalid URL: {}", e))?;
     url_with_params.set_query(None);
     for p in &params {

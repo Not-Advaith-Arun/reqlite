@@ -72,17 +72,36 @@ pub fn parse_curl(input: &str) -> Result<SavedRequest, String> {
         return Err("No URL found in curl command".into());
     }
 
+    // Extract query params from URL into params array (params is the canonical source
+    // for query parameters — the backend strips query from URL and rebuilds from params)
+    let mut params: Vec<KeyValue> = vec![];
+    let base_url = if let Ok(parsed) = reqwest::Url::parse(&url) {
+        for (k, v) in parsed.query_pairs() {
+            params.push(KeyValue {
+                key: k.into_owned(),
+                value: v.into_owned(),
+                enabled: true,
+            });
+        }
+        // URL without query string
+        let mut clean = parsed.clone();
+        clean.set_query(None);
+        clean.to_string()
+    } else {
+        url.clone()
+    };
+
     let id = ulid::Ulid::new().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
     Ok(SavedRequest {
         id,
         collection_id: String::new(),
-        name: format!("{} {}", method, url.split('?').next().unwrap_or(&url)),
+        name: format!("{} {}", method, base_url),
         method,
         url,
         headers,
-        params: vec![],
+        params,
         body,
         auth: AuthConfig::None,
         pre_script: String::new(),
