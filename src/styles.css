@@ -1639,7 +1639,7 @@ input, textarea, [contenteditable="true"], .response-body, .response-headers-raw
 
 .response-body {
   padding: 14px 16px;
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.6;
   overflow-x: auto;
@@ -3713,7 +3713,8 @@ kbd {
   overflow: auto;
   padding: 0;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: 600;
   line-height: 1;
 }
 
