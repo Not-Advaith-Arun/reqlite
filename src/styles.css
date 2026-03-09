@@ -2360,15 +2360,21 @@ kbd {
 }
 
 /* ===== TAB SEARCH ===== */
+.tab-search-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.tab-search-popover {
+  right: 0;
+  padding: 8px;
+  min-width: 200px;
+}
+
 .tab-search-container {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 0 6px;
-  height: 38px;
-  border-right: 1px solid var(--border-subtle);
-  flex-shrink: 0;
-  background: var(--bg-secondary);
 }
 
 .tab-search-icon {

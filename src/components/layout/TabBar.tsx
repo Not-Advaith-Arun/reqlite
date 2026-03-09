@@ -143,13 +143,22 @@ export const TabBar: Component = () => {
     }
   };
 
+  const closeSearchOnClick = (e: MouseEvent) => {
+    if (!(e.target as HTMLElement).closest(".tab-search-wrapper")) {
+      setShowSearch(false);
+      setTabSearch("");
+    }
+  };
+
   onMount(() => {
     loadGlobalVars();
     document.addEventListener("click", closeDropdownOnClick);
     document.addEventListener("click", closeGlobalsOnClick);
+    document.addEventListener("click", closeSearchOnClick);
     onCleanup(() => {
       document.removeEventListener("click", closeDropdownOnClick);
       document.removeEventListener("click", closeGlobalsOnClick);
+      document.removeEventListener("click", closeSearchOnClick);
     });
   });
 
@@ -161,30 +170,6 @@ export const TabBar: Component = () => {
             <polyline points="8 2 4 6 8 10" />
           </svg>
         </button>
-      </Show>
-
-      <Show when={showSearch()}>
-        <div class="tab-search-container">
-          <svg class="tab-search-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input
-            ref={searchInputRef}
-            class="tab-search-input"
-            type="text"
-            placeholder="Filter tabs..."
-            value={tabSearch()}
-            onInput={(e) => setTabSearch(e.currentTarget.value)}
-            onKeyDown={(e) => { if (e.key === "Escape") toggleSearch(); }}
-          />
-          <Show when={tabSearch()}>
-            <button class="tab-search-clear" onClick={() => setTabSearch("")}>
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-                <line x1="2" y1="2" x2="8" y2="8" /><line x1="8" y1="2" x2="2" y2="8" />
-              </svg>
-            </button>
-          </Show>
-        </div>
       </Show>
 
       <div class="tab-list" ref={tabListRef} onScroll={handleScroll}>
@@ -256,11 +241,38 @@ export const TabBar: Component = () => {
         </svg>
       </button>
 
-      <button class={`tab-new ${showSearch() ? "active" : ""}`} onClick={toggleSearch} title="Search tabs">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-        </svg>
-      </button>
+      <div class="tab-search-wrapper">
+        <button class={`tab-new ${showSearch() ? "active" : ""}`} onClick={toggleSearch} title="Search tabs">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+        </button>
+        <Show when={showSearch()}>
+          <div class="dropdown tab-search-popover">
+            <div class="tab-search-container">
+              <svg class="tab-search-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                ref={searchInputRef}
+                class="tab-search-input"
+                type="text"
+                placeholder="Filter tabs..."
+                value={tabSearch()}
+                onInput={(e) => setTabSearch(e.currentTarget.value)}
+                onKeyDown={(e) => { if (e.key === "Escape") toggleSearch(); }}
+              />
+              <Show when={tabSearch()}>
+                <button class="tab-search-clear" onClick={() => setTabSearch("")}>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                    <line x1="2" y1="2" x2="8" y2="8" /><line x1="8" y1="2" x2="2" y2="8" />
+                  </svg>
+                </button>
+              </Show>
+            </div>
+          </div>
+        </Show>
+      </div>
 
       <div class="global-vars-container">
         <button
