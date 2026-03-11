@@ -2,6 +2,22 @@
 
 High-performance API testing desktop app built with Tauri 2.0 and SolidJS. A lightweight, fast alternative to Postman with real-time team sync via Convex.
 
+## Download
+
+| Platform | Install | Manual Download |
+|:---------|:--------|:----------------|
+| **macOS** (Apple Silicon) | `brew install PatchPerson/tenso/tenso` | [`.dmg`](https://github.com/PatchPerson/Tenso/releases/latest) |
+| **Windows** | — | [`.exe`](https://github.com/PatchPerson/Tenso/releases/latest) · [`.msi`](https://github.com/PatchPerson/Tenso/releases/latest) |
+| **Linux** | — | [`.AppImage`](https://github.com/PatchPerson/Tenso/releases/latest) · [`.deb`](https://github.com/PatchPerson/Tenso/releases/latest) |
+
+> **macOS note:** If you download the `.dmg` directly and see _"Tenso.app is damaged"_, run:
+> ```bash
+> xattr -cr /Applications/Tenso.app
+> ```
+> Installing via Homebrew avoids this.
+
+---
+
 ## Features
 
 ### Core
