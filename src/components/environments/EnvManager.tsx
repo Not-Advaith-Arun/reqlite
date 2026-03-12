@@ -52,8 +52,8 @@ export const EnvManager: Component = () => {
 
   return (
     <div class="env-manager">
-      <div class="env-header">
-        <h3>Environments</h3>
+      <div class="sidebar-header">
+        <span class="sidebar-title">Environments</span>
         <button class="icon-btn env-add-btn" onClick={() => setShowCreate(true)} title="New environment">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="7" y1="2" x2="7" y2="12" /><line x1="2" y1="7" x2="12" y2="7" /></svg>
         </button>

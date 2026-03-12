@@ -1879,22 +1879,6 @@ kbd {
   padding: 0;
 }
 
-.env-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 14px 10px;
-}
-
-.env-header h3 {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 1.2px;
-  color: var(--text-muted);
-  margin: 0;
-}
-
 .env-add-btn:hover {
   color: var(--accent);
 }
@@ -2310,13 +2294,6 @@ kbd {
   height: 1px;
   background: var(--border);
   margin: 4px 0;
-}
-
-/* ===== HISTORY PANEL ===== */
-.history-panel {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
 }
 
 /* ===== REUSABLE: FORM PRIMITIVES ===== */
@@ -3349,7 +3326,7 @@ kbd {
 }
 
 .history-search {
-  padding: 4px 6px;
+  padding: 2px 14px 6px;
 }
 
 .history-entry {
