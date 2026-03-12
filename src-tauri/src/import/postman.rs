@@ -1,6 +1,7 @@
 use tenso_shared::models::*;
 use serde::Deserialize;
 use serde_json::Value;
+use super::ImportedCollection;
 
 /// Postman Collection v2.1 format structures
 #[derive(Deserialize)]
@@ -108,16 +109,7 @@ struct PostmanVariable {
     value: Option<String>,
 }
 
-/// Result of parsing a Postman collection - a tree of folders and requests
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct ImportedCollection {
-    pub name: String,
-    pub children: Vec<ImportedCollection>,
-    pub requests: Vec<SavedRequest>,
-    pub variables: Vec<KeyValue>,
-}
-
-pub fn parse_postman_collection(json: &str) -> Result<ImportedCollection, String> {
+pub fn parse_postman_collection(json: &str) -> Result<super::ImportedCollection, String> {
     let collection: PostmanCollection = serde_json::from_str(json)
         .map_err(|e| format!("Invalid Postman collection JSON: {}", e))?;
 

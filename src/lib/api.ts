@@ -163,6 +163,7 @@ export interface ImportedCollection {
 }
 
 export const importPostman = (jsonContent: string) => invoke<ImportedCollection>("import_postman", { jsonContent });
+export const importTenso = (jsonContent: string) => invoke<[ImportedCollection, Environment[]]>("import_tenso", { jsonContent });
 
 // Code Generation API
 export const generateCode = (method: string, url: string, headers: KeyValue[], body: RequestBody, language: string) =>

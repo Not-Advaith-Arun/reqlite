@@ -8,8 +8,7 @@ import { RequestPanel } from "../components/request/RequestPanel";
 import { ResponsePanel } from "../components/response/ResponsePanel";
 import { WsMessageStream } from "../components/response/WsMessageStream";
 import { EnvManager } from "../components/environments/EnvManager";
-import { CurlImport } from "../components/import/CurlImport";
-import { PostmanImport } from "../components/import/PostmanImport";
+import { ImportModal, type ImportTab } from "../components/import/ImportModal";
 import { Settings } from "./Settings";
 import { tabs, activeTabId, getActiveTab, updateTab, executeRequest, createNewTab, saveRequest, isWebSocketTab, connectWebSocket, openHistoryInTab, openHistoryInTabWithResponse } from "../stores/request";
 import { kbd } from "../lib/platform";
@@ -120,8 +119,7 @@ const HistoryContextMenu: Component<{
 export const MainWorkspace: Component = () => {
   const [sidePanel, setSidePanel] = createSignal<SidePanel>("collections");
   const [sidebarWidth, setSidebarWidth] = createSignal(280);
-  const [showCurlImport, setShowCurlImport] = createSignal(false);
-  const [showPostmanImport, setShowPostmanImport] = createSignal(false);
+  const [showImportModal, setShowImportModal] = createSignal<ImportTab | null>(null);
   const [showUserPopover, setShowUserPopover] = createSignal(false);
   let popoverRef: HTMLDivElement | undefined;
 
@@ -196,7 +194,7 @@ export const MainWorkspace: Component = () => {
       }
       if ((e.ctrlKey || e.metaKey) && e.key === "i") {
         e.preventDefault();
-        setShowCurlImport(true);
+        setShowImportModal("curl");
       }
     });
   });
@@ -267,13 +265,8 @@ export const MainWorkspace: Component = () => {
           <div class="sidebar-nav-spacer" />
           <button
             class="sidebar-nav-btn"
-            onClick={() => setShowPostmanImport(true)}
-            title="Import Postman Collection"
-          ><SideNavIcon type="postman" active={false} /></button>
-          <button
-            class="sidebar-nav-btn"
-            onClick={() => setShowCurlImport(true)}
-            title={`Import cURL (${kbd("Mod+I")})`}
+            onClick={() => setShowImportModal("tenso")}
+            title={`Import (${kbd("Mod+I")})`}
           ><SideNavIcon type="import" active={false} /></button>
           <button
             class={`sidebar-nav-btn ${sidePanel() === "settings" ? "active" : ""}`}
@@ -478,12 +471,13 @@ export const MainWorkspace: Component = () => {
 
       <StatusBar />
 
-      <Show when={showCurlImport()}>
-        <CurlImport onClose={() => setShowCurlImport(false)} />
-      </Show>
-
-      <Show when={showPostmanImport()}>
-        <PostmanImport onClose={() => setShowPostmanImport(false)} />
+      <Show when={showImportModal()} keyed>
+        {(tab) => (
+          <ImportModal
+            initialTab={tab}
+            onClose={() => setShowImportModal(null)}
+          />
+        )}
       </Show>
 
       <Show when={historyCtxMenu()} keyed>

@@ -1,5 +1,5 @@
 use crate::state::AppState;
-use crate::import::postman::ImportedCollection;
+use crate::import::ImportedCollection;
 use tenso_shared::models::*;
 use std::sync::Arc;
 
@@ -26,4 +26,12 @@ pub async fn import_postman(
     json_content: String,
 ) -> Result<ImportedCollection, String> {
     crate::import::postman::parse_postman_collection(&json_content)
+}
+
+#[tauri::command]
+pub async fn import_tenso(
+    _state: tauri::State<'_, Arc<AppState>>,
+    json_content: String,
+) -> Result<(ImportedCollection, Vec<Environment>), String> {
+    crate::import::tenso::parse_tenso_export(&json_content)
 }

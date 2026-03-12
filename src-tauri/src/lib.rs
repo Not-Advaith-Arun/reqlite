@@ -22,6 +22,8 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             #[cfg(desktop)]
             app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
@@ -90,6 +92,7 @@ pub fn run() {
             commands::import::import_curl,
             commands::import::import_openapi,
             commands::import::import_postman,
+            commands::import::import_tenso,
             commands::codegen::generate_code,
             commands::scripting::run_script,
             commands::websocket::ws_connect,

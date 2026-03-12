@@ -1,5 +1,5 @@
 import { Component, Show, createSignal } from "solid-js";
-import { importPostman, type ImportedCollection } from "../../lib/api";
+import { importTenso, listEnvironments, createEnvironment, updateEnvironment } from "../../lib/api";
 import { loadCollections, activeTeam } from "../../stores/collections";
 import { triggerPush } from "../../lib/sync";
 import { persistImportedTree } from "../../lib/import-utils";
@@ -9,10 +9,9 @@ interface Props {
   embedded?: boolean;
 }
 
-export const PostmanImport: Component<Props> = (props) => {
+export const TensoImport: Component<Props> = (props) => {
   const [jsonContent, setJsonContent] = createSignal("");
   const [error, setError] = createSignal("");
-  const [result, setResult] = createSignal<ImportedCollection | null>(null);
   const [importing, setImporting] = createSignal(false);
 
   const handleFileSelect = async (e: Event) => {
@@ -41,13 +40,28 @@ export const PostmanImport: Component<Props> = (props) => {
     try {
       setError("");
       setImporting(true);
-      const collection = await importPostman(content);
-      setResult(collection);
+
+      const [collection, environments] = await importTenso(content);
 
       await persistImportedTree(collection, teamId, null);
+
+      if (environments.length > 0) {
+        const existing = await listEnvironments(teamId);
+        const existingByName = new Map(existing.map((e) => [e.name, e]));
+
+        for (const env of environments) {
+          const found = existingByName.get(env.name);
+          if (found) {
+            await updateEnvironment({ ...found, variables: env.variables });
+          } else {
+            const created = await createEnvironment(teamId, env.name);
+            await updateEnvironment({ ...created, variables: env.variables });
+          }
+        }
+      }
+
       await loadCollections(teamId);
       triggerPush();
-
       props.onClose();
     } catch (e) {
       setError(String(e));
@@ -56,23 +70,23 @@ export const PostmanImport: Component<Props> = (props) => {
     }
   };
 
-  const countRequests = (): number => {
+  const getPreview = () => {
     try {
       const parsed = JSON.parse(jsonContent());
-      return countItems(parsed.item || []);
+      if (parsed.format !== "tenso") return null;
+      const reqCount = countRequests(parsed.collection);
+      const envCount = parsed.environments?.length || 0;
+      return { name: parsed.collection?.name, reqCount, envCount };
     } catch {
-      return 0;
+      return null;
     }
   };
 
-  const countItems = (items: any[]): number => {
-    let count = 0;
-    for (const item of items) {
-      if (item.item) {
-        count += countItems(item.item);
-      } else if (item.request) {
-        count++;
-      }
+  const countRequests = (col: any): number => {
+    if (!col) return 0;
+    let count = col.requests?.length || 0;
+    for (const child of col.children || []) {
+      count += countRequests(child);
     }
     return count;
   };
@@ -114,7 +128,7 @@ export const PostmanImport: Component<Props> = (props) => {
         <div style={{ position: "relative" }}>
           <textarea
             class="curl-input"
-            placeholder='Or paste your Postman collection JSON here...&#10;&#10;Export from Postman: Collection > ... > Export > Collection v2.1'
+            placeholder='Paste your Tenso export JSON here...'
             value={jsonContent()}
             onInput={(e) => { setJsonContent(e.currentTarget.value); setError(""); }}
             rows={12}
@@ -123,22 +137,28 @@ export const PostmanImport: Component<Props> = (props) => {
         </div>
 
         <Show when={jsonContent() && !error()}>
-          <div style={{
-            "margin-top": "10px",
-            padding: "8px 12px",
-            background: "var(--success-dim)",
-            "border-radius": "var(--radius-sm)",
-            "font-size": "12px",
-            color: "var(--success)",
-            display: "flex",
-            "align-items": "center",
-            gap: "6px",
-          }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-            {countRequests()} requests found
-          </div>
+          {(() => {
+            const preview = getPreview();
+            return preview ? (
+              <div style={{
+                "margin-top": "10px",
+                padding: "8px 12px",
+                background: "var(--success-dim)",
+                "border-radius": "var(--radius-sm)",
+                "font-size": "12px",
+                color: "var(--success)",
+                display: "flex",
+                "align-items": "center",
+                gap: "6px",
+              }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                {preview.name}: {preview.reqCount} request{preview.reqCount !== 1 ? "s" : ""}
+                {preview.envCount > 0 && `, ${preview.envCount} environment${preview.envCount !== 1 ? "s" : ""}`}
+              </div>
+            ) : null;
+          })()}
         </Show>
 
         <Show when={error()}>
@@ -153,7 +173,7 @@ export const PostmanImport: Component<Props> = (props) => {
           disabled={importing() || !jsonContent().trim()}
           style={{ opacity: importing() || !jsonContent().trim() ? "0.5" : "1" }}
         >
-          {importing() ? "Importing..." : "Import Collection"}
+          {importing() ? "Importing..." : "Import"}
         </button>
       </div>
     </>
@@ -165,12 +185,8 @@ export const PostmanImport: Component<Props> = (props) => {
     <div class="modal-overlay" onClick={props.onClose}>
       <div class="modal" onClick={(e) => e.stopPropagation()} style={{ width: "640px" }}>
         <div class="modal-header">
-          <h3>Import Postman Collection</h3>
-          <button class="icon-btn" onClick={props.onClose}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-              <line x1="3" y1="3" x2="11" y2="11" /><line x1="11" y1="3" x2="3" y2="11" />
-            </svg>
-          </button>
+          <h3>Import Tenso Collection</h3>
+          <button class="icon-btn" onClick={props.onClose}>x</button>
         </div>
         {content()}
       </div>
