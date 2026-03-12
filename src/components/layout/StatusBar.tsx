@@ -1,8 +1,9 @@
 import { Component, Show } from "solid-js";
 import { activeTeam, teams } from "../../stores/collections";
 import { activeEnvId, environments } from "../../stores/environments";
-import { syncState } from "../../lib/sync";
+import { syncState, syncError } from "../../lib/sync";
 import { authUser } from "../../lib/auth";
+import { showToast } from "../../stores/toast";
 
 export const StatusBar: Component = () => {
   const currentTeam = () => teams().find(w => w.id === activeTeam());
@@ -19,6 +20,19 @@ export const StatusBar: Component = () => {
 
   const syncClass = () => `sync-indicator sync-${syncState()}`;
 
+  const syncTitle = () => {
+    if (syncState() === "error" && syncError()) {
+      return `Sync error: ${syncError()}`;
+    }
+    return `Sync: ${syncState()}`;
+  };
+
+  const handleSyncClick = () => {
+    if (syncState() === "error" && syncError()) {
+      showToast(`Sync error: ${syncError()}`, 8000);
+    }
+  };
+
   return (
     <div class="status-bar">
       <div class="status-left">
@@ -30,7 +44,12 @@ export const StatusBar: Component = () => {
       </div>
       <div class="status-right">
         <Show when={authUser()}>
-          <span class={syncClass()} title={`Sync: ${syncState()}`}>
+          <span
+            class={syncClass()}
+            title={syncTitle()}
+            onClick={handleSyncClick}
+            style={syncState() === "error" ? { cursor: "pointer" } : {}}
+          >
             {syncIcon()}
           </span>
           <Show when={authUser()?.image}>

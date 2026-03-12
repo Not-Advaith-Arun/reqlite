@@ -5,7 +5,7 @@ import { isAuthenticated, authUser, signOut, activeTeamId, switchTeam } from "..
 import { getConvexClient } from "../lib/convex";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { stopSync } from "../lib/sync";
+import { stopSync, syncErrorLog, clearSyncErrorLog } from "../lib/sync";
 import type { ThemePreset } from "../lib/themes";
 
 const ThemeCard = (props: {
@@ -671,6 +671,28 @@ export const Settings: Component = () => {
             </Show>
           </Show>
         </div>
+
+        {/* Sync Log section */}
+        <Show when={syncErrorLog().length > 0}>
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <span class="settings-card-title">Sync Log</span>
+              <button class="btn-sm" onClick={clearSyncErrorLog}>Clear</button>
+            </div>
+            <div class="sync-log-list">
+              <For each={[...syncErrorLog()].reverse()}>
+                {(entry) => (
+                  <div class="sync-log-entry">
+                    <span class="sync-log-time">
+                      {new Date(entry.timestamp).toLocaleTimeString()}
+                    </span>
+                    <span class="sync-log-message">{entry.message}</span>
+                  </div>
+                )}
+              </For>
+            </div>
+          </div>
+        </Show>
       </div>
     </div>
   );

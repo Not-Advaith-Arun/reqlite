@@ -11,8 +11,25 @@ import { showToast } from "../stores/toast";
 
 export type SyncState = "offline" | "syncing" | "synced" | "error";
 
+export interface SyncErrorEntry {
+  timestamp: number;
+  message: string;
+}
+
 const [syncState, setSyncState] = createSignal<SyncState>("offline");
-export { syncState };
+const [syncError, setSyncError] = createSignal<string | null>(null);
+const [syncErrorLog, setSyncErrorLog] = createSignal<SyncErrorEntry[]>([]);
+export { syncState, syncError, syncErrorLog };
+
+function addSyncError(err: unknown) {
+  const message = err instanceof Error ? err.message : String(err);
+  setSyncError(message);
+  setSyncErrorLog(prev => [...prev, { timestamp: Date.now(), message }]);
+}
+
+export function clearSyncErrorLog() {
+  setSyncErrorLog([]);
+}
 
 let unsubscribe: (() => void) | null = null;
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -55,6 +72,7 @@ export function startSync(convexTeamId: string, localTeamId: string) {
             await applyRemoteChanges(result, localTeamId);
             if (!syncStopped) {
               setSyncState("synced");
+              setSyncError(null);
               if (!hasReconciled) {
                 hasReconciled = true;
                 reconcileRestoredTabs();
@@ -62,14 +80,20 @@ export function startSync(convexTeamId: string, localTeamId: string) {
             }
           } catch (err) {
             console.error("Sync pull error:", err);
-            if (!syncStopped) setSyncState("error");
+            if (!syncStopped) {
+              setSyncState("error");
+              addSyncError(err);
+            }
           }
         }
       );
     })
     .catch((err) => {
       console.error("Failed to start sync:", err);
-      if (!syncStopped) setSyncState("error");
+      if (!syncStopped) {
+        setSyncState("error");
+        addSyncError(err);
+      }
     });
 }
 
@@ -327,9 +351,11 @@ async function pushChanges(convexTeamId: string, localTeamId: string) {
     }
 
     setSyncState("synced");
+    setSyncError(null);
   } catch (err) {
     console.error("Sync push error:", err);
     setSyncState("error");
+    addSyncError(err);
   } finally {
     isPushing = false;
   }
