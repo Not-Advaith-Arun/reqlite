@@ -1,10 +1,12 @@
-import { Component, Show } from "solid-js";
+import { Component, Show, createResource } from "solid-js";
+import { getVersion } from "@tauri-apps/api/app";
 import { activeTeam, teams } from "../../stores/collections";
 import { activeEnvId, environments } from "../../stores/environments";
 import { syncState } from "../../lib/sync";
 import { authUser } from "../../lib/auth";
 
 export const StatusBar: Component = () => {
+  const [version] = createResource(getVersion);
   const currentTeam = () => teams().find(w => w.id === activeTeam());
   const currentEnv = () => environments().find(e => e.id === activeEnvId());
 
@@ -46,7 +48,7 @@ export const StatusBar: Component = () => {
         <Show when={currentEnv()}>
           <span class="status-item env-badge">{currentEnv()!.name}</span>
         </Show>
-        <span class="status-item">Tenso v0.1.0</span>
+        <span class="status-item">Tenso v{version() ?? ""}</span>
       </div>
     </div>
   );
