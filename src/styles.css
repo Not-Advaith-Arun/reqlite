@@ -3887,6 +3887,41 @@ kbd {
 .sync-synced { color: var(--success, #4ade80); }
 .sync-error { color: var(--error, #f87171); }
 
+/* Sync Log (Settings) */
+.sync-log-list {
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+}
+
+.sync-log-entry {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.sync-log-entry:last-child {
+  border-bottom: none;
+}
+
+.sync-log-time {
+  color: var(--text-muted);
+  font-family: monospace;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.sync-log-message {
+  color: var(--error, #f87171);
+  word-break: break-word;
+}
+
 .status-avatar {
   width: 16px;
   height: 16px;
