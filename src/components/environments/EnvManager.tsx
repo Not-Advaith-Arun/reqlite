@@ -54,20 +54,28 @@ export const EnvManager: Component = () => {
     <div class="env-manager">
       <div class="env-header">
         <h3>Environments</h3>
-        <button class="btn-sm" onClick={() => setShowCreate(true)}>+ New</button>
+        <button class="icon-btn env-add-btn" onClick={() => setShowCreate(true)} title="New environment">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="7" y1="2" x2="7" y2="12" /><line x1="2" y1="7" x2="12" y2="7" /></svg>
+        </button>
       </div>
 
       <Show when={showCreate()}>
         <div class="env-create">
-          <input
-            class="env-input"
-            placeholder="Environment name..."
-            value={newEnvName()}
-            onInput={(e) => setNewEnvName(e.currentTarget.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") setShowCreate(false); }}
-            autofocus
-          />
-          <button class="btn-sm" onClick={handleCreate}>Create</button>
+          <div class="env-input-wrapper">
+            <input
+              class="env-input"
+              placeholder="Environment name..."
+              value={newEnvName()}
+              onInput={(e) => setNewEnvName(e.currentTarget.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") setShowCreate(false); }}
+              autofocus
+            />
+            <button class="env-confirm-btn" onClick={handleCreate} title="Create environment">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </button>
+          </div>
         </div>
       </Show>
 

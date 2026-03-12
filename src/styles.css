@@ -1895,22 +1895,52 @@ kbd {
   margin: 0;
 }
 
+.env-add-btn:hover {
+  color: var(--accent);
+}
+
 .env-create {
   display: flex;
-  gap: 8px;
   padding: 6px 14px;
 }
 
-.env-input {
+.env-input-wrapper {
+  position: relative;
   flex: 1;
-  padding: 5px 10px;
+}
+
+.env-input {
+  width: 100%;
+  padding: 8px 36px 8px 10px;
   background: var(--bg-surface);
   border: 1px solid var(--accent);
   border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 3px var(--accent-dim);
   color: var(--text-primary);
   font-size: 12px;
   outline: none;
-  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+.env-confirm-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--bg-primary);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.env-confirm-btn:hover {
+  background: var(--accent-hover);
 }
 
 .env-list {
@@ -1959,6 +1989,8 @@ kbd {
 .env-name {
   flex: 1;
   color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 13px;
 }
 
 .env-item.active .env-name {
@@ -2013,7 +2045,7 @@ kbd {
 
 .env-confirm-text {
   color: var(--error);
-  font-weight: 600;
+  font-weight: 700;
   font-size: 12px;
 }
 
@@ -2046,7 +2078,7 @@ kbd {
 .env-confirm-no {
   background: transparent;
   color: var(--text-secondary);
-  border-color: var(--border);
+  border: none;
 }
 
 .env-confirm-no:hover {
