@@ -1421,7 +1421,6 @@ input, textarea, [contenteditable="true"], .response-body, .response-headers-raw
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  min-width: 0;
 }
 
 .split-divider.vertical {

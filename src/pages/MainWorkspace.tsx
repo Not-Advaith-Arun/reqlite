@@ -226,7 +226,11 @@ export const MainWorkspace: Component = () => {
 
     const onMove = (e: MouseEvent) => {
       const rect = container.getBoundingClientRect();
-      const ratio = Math.max(0.2, Math.min(0.8, (e.clientX - rect.left) / rect.width));
+      const minLeftPx = 500;
+      const minRightPx = 300;
+      const minRatio = minLeftPx / rect.width;
+      const maxRatio = 1 - (minRightPx / rect.width);
+      const ratio = Math.max(minRatio, Math.min(maxRatio, (e.clientX - rect.left) / rect.width));
       setSplitRatio(ratio);
     };
 
@@ -443,7 +447,7 @@ export const MainWorkspace: Component = () => {
               }
             >
               <div class="split-pane-horizontal">
-                <div class="split-left" style={{ width: `${splitRatio() * 100}%` }}>
+                <div class="split-left" style={{ flex: `0 0 ${splitRatio() * 100}%`, "min-width": "500px" }}>
                   <RequestPanel
                     tab={activeTab()!}
                     onUpdate={(updates) => updateTab(activeTab()!.id, updates)}
@@ -451,7 +455,7 @@ export const MainWorkspace: Component = () => {
                   />
                 </div>
                 <div class="resize-handle vertical split-divider" onMouseDown={handleSplitResize} />
-                <div class="split-right" style={{ width: `${(1 - splitRatio()) * 100}%` }}>
+                <div class="split-right" style={{ flex: `0 0 ${(1 - splitRatio()) * 100}%`, "min-width": "300px" }}>
                   <Show when={isWebSocketTab(activeTab()!)} fallback={
                     <ResponsePanel
                       response={activeTab()!.response}
