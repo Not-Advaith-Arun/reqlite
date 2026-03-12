@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import { getConvexClient, setConvexAuth } from "./convex";
+import { getConvexClient, setConvexAuth, createHttpClient } from "./convex";
 import { api } from "../../convex/_generated/api";
 import { startSync, stopSync } from "./sync";
 import { startInviteWatch, stopInviteWatch } from "./invites";
@@ -48,7 +48,7 @@ export async function initAuth() {
       const refreshToken = localStorage.getItem("convex_refresh_token");
       if (refreshToken) {
         try {
-          const result = await getConvexClient().action(api.auth.signIn, { refreshToken });
+          const result = await createHttpClient().action(api.auth.signIn, { refreshToken });
           if (result && typeof result === "object" && "tokens" in result) {
             const newTokens = (result as any).tokens;
             localStorage.setItem("convex_auth_token", newTokens.token);

@@ -1,15 +1,25 @@
-import { ConvexClient } from "convex/browser";
+import { ConvexClient, ConvexHttpClient } from "convex/browser";
 import { api } from "../../convex/_generated/api";
 
 let client: ConvexClient | null = null;
 
+function getConvexUrl(): string {
+  const url = (import.meta as any).env?.VITE_CONVEX_URL;
+  if (!url) throw new Error("VITE_CONVEX_URL not set");
+  return url;
+}
+
 export function getConvexClient(): ConvexClient {
   if (!client) {
-    const url = (import.meta as any).env?.VITE_CONVEX_URL;
-    if (!url) throw new Error("VITE_CONVEX_URL not set");
-    client = new ConvexClient(url);
+    client = new ConvexClient(getConvexUrl());
   }
   return client;
+}
+
+// HTTP client for token refresh — bypasses WebSocket to avoid deadlock
+// when AuthenticationManager stops the socket during reauthentication
+export function createHttpClient(): ConvexHttpClient {
+  return new ConvexHttpClient(getConvexUrl());
 }
 
 export function setConvexAuth(token: string | null) {
@@ -28,7 +38,8 @@ export function setConvexAuth(token: string | null) {
     if (!refreshToken) return null;
 
     try {
-      const result = await c.action(api.auth.signIn, { refreshToken });
+      const http = createHttpClient();
+      const result = await http.action(api.auth.signIn, { refreshToken });
       if (result && typeof result === "object" && "tokens" in result) {
         const newTokens = (result as any).tokens;
         localStorage.setItem("convex_auth_token", newTokens.token);
